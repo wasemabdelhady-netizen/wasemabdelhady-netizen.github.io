@@ -57,7 +57,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&family=Reem+Kufi:wght@500;700&family=Syne:wght@700;800&display=swap" rel="stylesheet">
-<link rel="preload" as="image" href="hero.jpg">
+<link rel="preload" as="image" href="hero.webp" type="image/webp">
 
 <style>
   :root {
@@ -312,6 +312,7 @@
   }
   .song .cover-wrap { grid-row:span 3; }
   .song .cover { border-radius:10px; }
+  .song .cover::before { background-image:var(--img-sm, var(--img)); }
   .song .cover__ph { font-size:13px; padding:10px; }
   .song .song-title { align-self:end; }
   .song-links { align-self:start; display:flex; align-items:center; gap:4px; }
@@ -495,6 +496,7 @@
     .songs { grid-template-columns:repeat(3, 1fr); gap:28px; }
     .song { display:flex; flex-direction:column; align-items:stretch; gap:0; }
     .song .cover { border-radius:14px; }
+    .song .cover::before { background-image:var(--img); }
     .song .play { left:12px; bottom:12px; width:48px; height:48px; }
     .song .play__icon, .song .play__pause { width:16px; height:16px; }
     .song .cover__ph { font-size:20px; padding:16px; }
@@ -521,10 +523,10 @@
 
   <header class="hero">
     <div class="hero__media">
-      <img src="hero.jpg" alt="وسيم عبد الهادي — Wasem Abdelhady" width="1080" height="1448" fetchpriority="high">
+      <img src="hero.webp" alt="وسيم عبد الهادي — Wasem Abdelhady" width="1080" height="1448" fetchpriority="high">
       <!-- Loop is attached by script so phones on data saver / reduced motion keep the still -->
       <!-- Loop is attached by script so phones on data saver / reduced motion keep the still -->
-      <video class="hero__video" muted loop playsinline preload="none" poster="hero.jpg" aria-hidden="true" data-src="hero.mp4"></video>
+      <video class="hero__video" muted loop playsinline preload="none" poster="hero.webp" aria-hidden="true" data-src="hero.mp4"></video>
     </div>
     <div class="hero__content">
       <h1 class="hero__name"><span>Wasem</span><span>Abdelhady</span></h1>
@@ -585,7 +587,7 @@
       </div>
       <div class="latest" style="--amb:#2b56a0;--acc:#e73540">
         <div class="halo">
-          <div class="cover cover--lg" style="--img:url('covers/ba2olak-eh.jpg')" role="img" aria-label="غلاف بقولك ايه — Ba2olak Eh">
+          <div class="cover cover--lg" style="--img:url('covers/ba2olak-eh.webp')" role="img" aria-label="غلاف بقولك ايه — Ba2olak Eh">
             <span class="cover__ph">بقولك ايه</span>
             <button class="play play--lg" type="button" data-audio="audio/ba2olak-eh.mp3" aria-label="اسمع مقطع من بقولك ايه"><svg class="play__ring" viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="24" r="22"/><circle class="play__bar" cx="24" cy="24" r="22"/></svg><svg class="play__icon" aria-hidden="true"><use href="#i-play"/></svg><svg class="play__pause" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M7 5h3.5v14H7zM13.5 5H17v14h-3.5z"/></svg></button>
         </div>
@@ -612,7 +614,7 @@
       <div class="songs">
         <article class="song" style="--amb:#2b56a0;--acc:#e73540">
           <div class="cover-wrap">
-            <a class="cover" href="https://open.spotify.com/album/1ZUtBNTMqPlJMOqx9mjsww" target="_blank" rel="noopener" style="--img:url('covers/ba2olak-eh.jpg')" aria-label="بقولك ايه على Spotify"><span class="cover__ph">بقولك ايه</span></a>
+            <a class="cover" href="https://open.spotify.com/album/1ZUtBNTMqPlJMOqx9mjsww" target="_blank" rel="noopener" style="--img:url('covers/ba2olak-eh.webp');--img-sm:url('covers/ba2olak-eh-400.webp')" aria-label="بقولك ايه على Spotify"><span class="cover__ph">بقولك ايه</span></a>
             <button class="play" type="button" data-audio="audio/ba2olak-eh.mp3" aria-label="اسمع مقطع من بقولك ايه"><svg class="play__ring" viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="24" r="22"/><circle class="play__bar" cx="24" cy="24" r="22"/></svg><svg class="play__icon" aria-hidden="true"><use href="#i-play"/></svg><svg class="play__pause" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M7 5h3.5v14H7zM13.5 5H17v14h-3.5z"/></svg></button>
           </div>
           <h3 class="song-title"><a href="/ba2olak-eh/">بقولك ايه</a> <span lang="en" dir="ltr">Ba2olak Eh</span></h3>
@@ -636,7 +638,7 @@
         </article>
         <article class="song" style="--amb:#04899a;--acc:#e78e22">
           <div class="cover-wrap">
-            <a class="cover" href="https://open.spotify.com/track/0DWMpXgS6Q3hBbeqWvTqvG" target="_blank" rel="noopener" style="--img:url('covers/mesh-le3ba.jpg')" aria-label="مش لعبة على Spotify"><span class="cover__ph">مش لعبة</span></a>
+            <a class="cover" href="https://open.spotify.com/track/0DWMpXgS6Q3hBbeqWvTqvG" target="_blank" rel="noopener" style="--img:url('covers/mesh-le3ba.webp');--img-sm:url('covers/mesh-le3ba-400.webp')" aria-label="مش لعبة على Spotify"><span class="cover__ph">مش لعبة</span></a>
             <button class="play" type="button" data-audio="audio/mesh-le3ba.mp3" aria-label="اسمع مقطع من مش لعبة"><svg class="play__ring" viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="24" r="22"/><circle class="play__bar" cx="24" cy="24" r="22"/></svg><svg class="play__icon" aria-hidden="true"><use href="#i-play"/></svg><svg class="play__pause" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M7 5h3.5v14H7zM13.5 5H17v14h-3.5z"/></svg></button>
           </div>
           <h3 class="song-title"><a href="/mesh-le3ba/">مش لعبة</a> <span lang="en" dir="ltr">Mesh Le3ba</span></h3>
@@ -660,7 +662,7 @@
         </article>
         <article class="song" style="--amb:#7d848c;--acc:#e6e6e6">
           <div class="cover-wrap">
-            <a class="cover" href="https://open.spotify.com/track/61N58LukOCpYvQfLchpFJu" target="_blank" rel="noopener" style="--img:url('covers/enta-el-habib.jpg')" aria-label="انت الحبيب على Spotify"><span class="cover__ph">انت الحبيب</span></a>
+            <a class="cover" href="https://open.spotify.com/track/61N58LukOCpYvQfLchpFJu" target="_blank" rel="noopener" style="--img:url('covers/enta-el-habib.webp');--img-sm:url('covers/enta-el-habib-400.webp')" aria-label="انت الحبيب على Spotify"><span class="cover__ph">انت الحبيب</span></a>
             <button class="play" type="button" data-audio="audio/enta-el-habib.mp3" aria-label="اسمع مقطع من انت الحبيب"><svg class="play__ring" viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="24" r="22"/><circle class="play__bar" cx="24" cy="24" r="22"/></svg><svg class="play__icon" aria-hidden="true"><use href="#i-play"/></svg><svg class="play__pause" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M7 5h3.5v14H7zM13.5 5H17v14h-3.5z"/></svg></button>
           </div>
           <h3 class="song-title"><a href="/enta-el-habib/">انت الحبيب</a> <span lang="en" dir="ltr">Enta El Habib</span></h3>

@@ -46,9 +46,9 @@
     "https://musicbrainz.org/artist/20ab9701-46e2-405c-8b69-6e174b21023a"
   ],
   "track": [
-    { "@type": "MusicRecording", "name": "بقولك ايه (Ba2olak Eh)", "datePublished": "2026-10-15", "byArtist": { "@id": "https://wasemabdelhady.com/#wasem" }, "url": "https://open.spotify.com/album/1ZUtBNTMqPlJMOqx9mjsww" },
-    { "@type": "MusicRecording", "name": "مش لعبة", "datePublished": "2026-08-13", "byArtist": { "@id": "https://wasemabdelhady.com/#wasem" }, "url": "https://open.spotify.com/album/7j42yuUaWrcEnMVLGKhiAY" },
-    { "@type": "MusicRecording", "name": "انت الحبيب (Enta El Habib)", "datePublished": "2024-11-19", "byArtist": { "@id": "https://wasemabdelhady.com/#wasem" }, "url": "https://open.spotify.com/album/0k7P71uCqYIBvg4e38xvDJ" }
+    { "@type": "MusicRecording", "name": "بقولك ايه (Ba2olak Eh)", "recordingOf": { "@type": "MusicComposition", "name": "بقولك ايه (Ba2olak Eh)", "lyricist": { "@type": "Person", "name": "Bassam Mahmoud" }, "composer": { "@id": "https://wasemabdelhady.com/#wasem" } }, "datePublished": "2026-10-15", "byArtist": { "@id": "https://wasemabdelhady.com/#wasem" }, "url": "https://open.spotify.com/album/1ZUtBNTMqPlJMOqx9mjsww" },
+    { "@type": "MusicRecording", "name": "مش لعبة", "recordingOf": { "@type": "MusicComposition", "name": "مش لعبة", "lyricist": { "@type": "Person", "name": "Bassam Mahmoud" }, "composer": { "@type": "Person", "name": "Bassam Mahmoud" } }, "datePublished": "2026-08-13", "byArtist": { "@id": "https://wasemabdelhady.com/#wasem" }, "url": "https://open.spotify.com/album/7j42yuUaWrcEnMVLGKhiAY" },
+    { "@type": "MusicRecording", "name": "انت الحبيب (Enta El Habib)", "recordingOf": { "@type": "MusicComposition", "name": "انت الحبيب (Enta El Habib)", "lyricist": { "@type": "Person", "name": "Bassam Mahmoud" }, "composer": { "@type": "Person", "name": "Bassam Mahmoud" } }, "datePublished": "2024-11-19", "byArtist": { "@id": "https://wasemabdelhady.com/#wasem" }, "url": "https://open.spotify.com/album/0k7P71uCqYIBvg4e38xvDJ" }
   ]
 }
 </script>
@@ -337,6 +337,21 @@
   .play--lg { width:64px; height:64px; left:16px; bottom:16px; }
   .play--lg .play__icon, .play--lg .play__pause { width:24px; height:24px; }
 
+  /* Credits under each song: collapsed on phones, opened by script on wider screens */
+  .credits { grid-column:1 / -1; margin-top:10px; border-top:1px solid rgba(245,239,230,.08); font-size:13px; }
+  .credits summary {
+    list-style:none; cursor:pointer; padding:10px 0 2px; color:var(--gold); font-weight:700; font-size:13px;
+    display:flex; align-items:center; gap:8px;
+  }
+  .credits summary::-webkit-details-marker { display:none; }
+  .credits summary span { font-family:var(--en); font-size:10px; letter-spacing:.1em; opacity:.75; }
+  .credits summary::after { content:""; width:7px; height:7px; border:solid currentColor; border-width:0 1.5px 1.5px 0; transform:rotate(45deg) translateY(-2px); transition:transform .2s; margin-inline-start:auto; }
+  .credits[open] summary::after { transform:rotate(225deg) translateY(-2px); }
+  .credits dl { display:grid; gap:6px; padding-top:8px; }
+  .credits dl div { display:flex; justify-content:space-between; gap:12px; }
+  .credits dt { color:var(--muted); }
+  .credits dd { font-weight:700; color:var(--text); white-space:nowrap; }
+
   /* Videos */
   .videos { display:grid; gap:16px; }
   .video {
@@ -406,6 +421,7 @@
   .contact__label span { font-family:var(--en); font-weight:700; font-size:11px; letter-spacing:.08em; margin-inline-start:6px; }
   .contact__value { font-family:var(--ar); font-weight:700; font-size:17px; letter-spacing:.02em; text-align:right; overflow-wrap:anywhere; }
 
+  .footer__label { margin-top:6px; font-family:var(--en); font-weight:700; letter-spacing:.24em; font-size:10px; color:rgba(224,164,88,.6); }
   .footer { padding:32px 20px calc(32px + env(safe-area-inset-bottom)); text-align:center; font-size:12px; color:rgba(245,239,230,.35); border-top:1px solid rgba(245,239,230,.07); }
 
   @media (min-width:700px) {
@@ -419,6 +435,7 @@
     .song .cover__ph { font-size:20px; padding:16px; }
     .song .song-title { margin-top:14px; align-self:stretch; }
     .song-links { margin-top:10px; align-self:stretch; }
+    .credits { margin-top:14px; }
     .video--main { grid-column:1 / -1; }
   }
   @media (min-width:900px) {
@@ -516,6 +533,15 @@
             <a href="https://play.anghami.com/song/1306308384" target="_blank" rel="noopener" aria-label="Anghami"><svg><use href="#i-anghami"/></svg></a>
             <a href="https://www.youtube.com/watch?v=SYH-gLZuNs4" target="_blank" rel="noopener" aria-label="YouTube"><svg><use href="#i-youtube"/></svg></a>
           </div>
+          <details class="credits">
+            <summary>الكريدتس <span lang="en" dir="ltr">Credits</span></summary>
+            <dl>
+            <div><dt>كلمات</dt><dd>بسام محمود</dd></div>
+            <div><dt>ألحان</dt><dd>وسيم</dd></div>
+            <div><dt>توزيع وميكس وماستر</dt><dd>لاتينو</dd></div>
+            <div><dt>فيديو ومونتاج</dt><dd>وسيم</dd></div>
+            </dl>
+          </details>
         </article>
         <article class="song" style="--amb:#04899a;--acc:#e78e22">
           <div class="cover-wrap">
@@ -530,6 +556,15 @@
             <a href="https://play.anghami.com/song/1294597707" target="_blank" rel="noopener" aria-label="Anghami"><svg><use href="#i-anghami"/></svg></a>
             <a href="https://www.youtube.com/watch?v=2M8zF7OjcY8" target="_blank" rel="noopener" aria-label="YouTube"><svg><use href="#i-youtube"/></svg></a>
           </div>
+          <details class="credits">
+            <summary>الكريدتس <span lang="en" dir="ltr">Credits</span></summary>
+            <dl>
+            <div><dt>كلمات وألحان</dt><dd>بسام محمود</dd></div>
+            <div><dt>توزيع</dt><dd>وسيم</dd></div>
+            <div><dt>ميكس وماستر</dt><dd>لاتينو</dd></div>
+            <div><dt>فيديو ومونتاج</dt><dd>وسيم</dd></div>
+            </dl>
+          </details>
         </article>
         <article class="song" style="--amb:#7d848c;--acc:#e6e6e6">
           <div class="cover-wrap">
@@ -544,6 +579,15 @@
             <a href="https://play.anghami.com/song/1187145973" target="_blank" rel="noopener" aria-label="Anghami"><svg><use href="#i-anghami"/></svg></a>
             <a href="https://www.youtube.com/watch?v=XPX0FuAgUc4" target="_blank" rel="noopener" aria-label="YouTube"><svg><use href="#i-youtube"/></svg></a>
           </div>
+          <details class="credits">
+            <summary>الكريدتس <span lang="en" dir="ltr">Credits</span></summary>
+            <dl>
+            <div><dt>كلمات وألحان</dt><dd>بسام محمود</dd></div>
+            <div><dt>توزيع وميكس</dt><dd>وسيم</dd></div>
+            <div><dt>ستيم ماستر</dt><dd>لاتينو</dd></div>
+            <div><dt>فيديو ومونتاج</dt><dd>وسيم</dd></div>
+            </dl>
+          </details>
         </article>
       </div>
     </section>
@@ -626,6 +670,7 @@
 
   <footer class="footer">
     <p dir="ltr">© 2026 Wasem Abdelhady · وسيم عبد الهادي</p>
+    <p class="footer__label" dir="ltr">℗ WA Records</p>
   </footer>
 
   <script>
@@ -638,6 +683,11 @@
       v.addEventListener('playing', function () { v.classList.add('is-playing'); }, { once: true });
       v.play().catch(function () {});
     })();
+
+    // Credits start open where there is room for them
+    if (matchMedia('(min-width: 700px)').matches) {
+      document.querySelectorAll('details.credits').forEach(function (d) { d.open = true; });
+    }
 
     // Touch screens have no hover: light up the one card closest to the middle of the screen
     if (matchMedia('(hover: none)').matches) {

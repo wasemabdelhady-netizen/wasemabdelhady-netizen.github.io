@@ -168,8 +168,10 @@
 
   .hero__cta {
     margin-top:28px;
-    display:flex; gap:12px; justify-content:center;
+    display:flex; gap:10px; justify-content:center;
   }
+  /* three buttons share the row on phones */
+  .hero__cta .btn { flex:1 1 0; min-width:0; max-width:150px; padding:0 12px; }
   .btn {
     display:inline-flex; align-items:center; justify-content:center;
     min-width:140px; height:50px; padding:0 26px;
@@ -212,6 +214,7 @@
     .hero__ar { font-size:clamp(28px, 2.6vw, 40px); }
     .hero__role { padding-left:0; }
     .hero__cta { justify-content:flex-start; }
+    .hero__cta .btn { flex:0 0 auto; min-width:130px; max-width:none; padding:0 24px; }
   }
 
   /* ---------- SECTIONS ---------- */
@@ -564,6 +567,7 @@
       <div class="hero__cta">
         <a class="btn btn--solid" href="#latest">Listen</a>
         <a class="btn btn--line" href="#follow">Follow</a>
+        <a class="btn btn--line" href="#contact">Contact</a>
       </div>
     </div>
   </header>

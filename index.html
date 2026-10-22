@@ -276,6 +276,20 @@
   }
   .latest .cover { box-shadow:0 0 0 1px color-mix(in srgb, var(--acc) 25%, transparent); }
 
+  /* Coming soon: countdown + pre-save, driven by NEXT_RELEASE */
+  .soon__body { display:grid; gap:24px; }
+  .soon__cover { width:min(300px, 70vw); aspect-ratio:1; border-radius:14px; overflow:hidden; background:#17140f; box-shadow:0 0 0 1px rgba(224,164,88,.3), 0 30px 80px -30px rgba(224,164,88,.45); }
+  .soon__cover img { width:100%; height:100%; object-fit:cover; }
+  .soon__cover:not(.has-img) { display:none; }
+  .soon__title { font-family:var(--ar-display); font-weight:700; font-size:clamp(32px, 9vw, 48px); line-height:1.2; }
+  .soon__title span { display:block; text-align:right; font-family:var(--en); font-size:13px; letter-spacing:.14em; color:var(--muted); margin-top:4px; }
+  .soon__date { margin-top:8px; color:var(--muted); }
+  .countdown { display:grid; grid-template-columns:repeat(4, 1fr); gap:10px; margin:22px 0 26px; max-width:420px; }
+  .countdown div { text-align:center; padding:14px 4px; border-radius:12px; background:rgba(245,239,230,.04); border:1px solid rgba(224,164,88,.25); }
+  .countdown b { display:block; font-family:var(--en); font-weight:800; font-size:clamp(24px, 7vw, 34px); color:var(--gold); font-variant-numeric:tabular-nums; }
+  .countdown span { font-size:12px; color:var(--muted); }
+  @media (min-width:900px) { .soon__body { grid-template-columns:300px 1fr; gap:48px; align-items:center; } }
+
   /* Latest release */
   .latest { display:grid; gap:24px; }
   .latest .cover { width:100%; }
@@ -296,12 +310,17 @@
   .song {
     display:grid; grid-template-columns:104px 1fr; gap:6px 16px; align-items:center;
   }
-  .song .cover-wrap { grid-row:span 2; }
+  .song .cover-wrap { grid-row:span 3; }
   .song .cover { border-radius:10px; }
   .song .cover__ph { font-size:13px; padding:10px; }
   .song .song-title { align-self:end; }
   .song-links { align-self:start; display:flex; align-items:center; gap:4px; }
   .song-year { font-size:13px; color:var(--muted); margin-inline-end:6px; }
+  .song-title a { color:inherit; text-decoration:none; }
+  .song-title a:hover { color:var(--gold); }
+  .song-page { color:var(--gold); font-size:13px; font-weight:700; text-decoration:none; margin-inline-end:8px; }
+  .song-page:hover { text-decoration:underline; }
+  .song .song-page { align-self:center; margin:0; }
   .song-links a {
     width:36px; height:36px; display:grid; place-items:center; border-radius:50%;
     color:var(--gold); border:1px solid rgba(245,239,230,.1); transition:border-color .2s, background .2s;
@@ -427,6 +446,19 @@
   .socials a:hover { border-color:var(--gold); background:rgba(224,164,88,.08); }
 
   /* Contact */
+  .press-link { display:inline-block; margin-top:22px; color:var(--gold); font-weight:700; text-decoration:none; font-size:14px; }
+  .press-link:hover { text-decoration:underline; }
+  .channel {
+    display:flex; align-items:center; gap:14px; margin-bottom:16px; padding:16px 18px; border-radius:14px;
+    background:linear-gradient(135deg, rgba(224,164,88,.16), rgba(224,164,88,.04)); border:1px solid rgba(224,164,88,.4);
+    color:var(--text); text-decoration:none;
+  }
+  .channel svg { width:28px; height:28px; color:var(--gold); flex:none; }
+  .channel span { flex:1; }
+  .channel b { display:block; font-size:16px; }
+  .channel i { font-style:normal; font-family:var(--en); font-size:11px; letter-spacing:.06em; color:var(--muted); }
+  .channel em { font-style:normal; color:var(--gold); font-weight:700; font-size:14px; }
+
   .section--contact { text-align:center; }
   .section--contact .eyebrow { text-align:center; }
   .contact__lead { color:var(--muted); font-size:16px; }
@@ -467,6 +499,7 @@
     .song .play__icon, .song .play__pause { width:16px; height:16px; }
     .song .cover__ph { font-size:20px; padding:16px; }
     .song .song-title { margin-top:14px; align-self:stretch; }
+    .song .song-page { margin-top:4px; align-self:stretch; }
     .song-links { margin-top:10px; align-self:stretch; }
     .credits { margin-top:14px; }
     .video--main { grid-column:1 / -1; }
@@ -521,6 +554,30 @@
   <main>
 
     <!-- ===== أحدث إصدار ===== -->
+    <!-- ===== قريباً =====
+         Hidden until NEXT_RELEASE (in the script at the bottom) has a future date.
+         It disappears by itself once that date passes. -->
+    <section class="section soon" id="soon" aria-labelledby="soon-h" hidden>
+      <div class="section__head">
+        <p class="eyebrow">COMING SOON</p>
+        <h2 id="soon-h">قريباً</h2>
+      </div>
+      <div class="soon__body">
+        <div class="soon__cover"><img alt="" width="900" height="900"></div>
+        <div>
+          <h3 class="soon__title"></h3>
+          <p class="soon__date"></p>
+          <div class="countdown" aria-live="off">
+            <div><b data-u="d">0</b><span>يوم</span></div>
+            <div><b data-u="h">0</b><span>ساعة</span></div>
+            <div><b data-u="m">0</b><span>دقيقة</span></div>
+            <div><b data-u="s">0</b><span>ثانية</span></div>
+          </div>
+          <a class="btn btn--solid soon__cta" target="_blank" rel="noopener">Pre-save</a>
+        </div>
+      </div>
+    </section>
+
     <section class="section" id="latest" aria-labelledby="latest-h">
       <div class="section__head">
         <p class="eyebrow">LATEST RELEASE</p>
@@ -535,7 +592,7 @@
         </div>
         <div class="latest__body">
           <h3 class="song-title">بقولك ايه <span lang="en" dir="ltr">Ba2olak Eh</span></h3>
-          <p class="song-meta"><span dir="ltr">Single · 2026</span></p>
+          <p class="song-meta"><span dir="ltr">Single · 2026</span> · <a class="song-page" href="/ba2olak-eh/">الكلمات والكليب ←</a></p>
           <div class="platforms">
             <a class="pill" href="https://open.spotify.com/album/1ZUtBNTMqPlJMOqx9mjsww" target="_blank" rel="noopener"><svg><use href="#i-spotify"/></svg>Spotify</a>
             <a class="pill" href="https://music.apple.com/eg/album/%D8%A8%D9%82%D9%88%D9%84%D9%83-%D8%A7%D9%8A%D9%87-ba2olak-eh-single/6820402630" target="_blank" rel="noopener"><svg><use href="#i-apple"/></svg>Apple Music</a>
@@ -558,7 +615,8 @@
             <a class="cover" href="https://open.spotify.com/album/1ZUtBNTMqPlJMOqx9mjsww" target="_blank" rel="noopener" style="--img:url('covers/ba2olak-eh.jpg')" aria-label="بقولك ايه على Spotify"><span class="cover__ph">بقولك ايه</span></a>
             <button class="play" type="button" data-audio="audio/ba2olak-eh.mp3" aria-label="اسمع مقطع من بقولك ايه"><svg class="play__ring" viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="24" r="22"/><circle class="play__bar" cx="24" cy="24" r="22"/></svg><svg class="play__icon" aria-hidden="true"><use href="#i-play"/></svg><svg class="play__pause" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M7 5h3.5v14H7zM13.5 5H17v14h-3.5z"/></svg></button>
           </div>
-          <h3 class="song-title">بقولك ايه <span lang="en" dir="ltr">Ba2olak Eh</span></h3>
+          <h3 class="song-title"><a href="/ba2olak-eh/">بقولك ايه</a> <span lang="en" dir="ltr">Ba2olak Eh</span></h3>
+          <a class="song-page" href="/ba2olak-eh/">الكلمات والتفاصيل ←</a>
           <div class="song-links">
             <span class="song-year" dir="ltr">2026</span>
             <a href="https://open.spotify.com/album/1ZUtBNTMqPlJMOqx9mjsww" target="_blank" rel="noopener" aria-label="Spotify"><svg><use href="#i-spotify"/></svg></a>
@@ -581,7 +639,8 @@
             <a class="cover" href="https://open.spotify.com/track/0DWMpXgS6Q3hBbeqWvTqvG" target="_blank" rel="noopener" style="--img:url('covers/mesh-le3ba.jpg')" aria-label="مش لعبة على Spotify"><span class="cover__ph">مش لعبة</span></a>
             <button class="play" type="button" data-audio="audio/mesh-le3ba.mp3" aria-label="اسمع مقطع من مش لعبة"><svg class="play__ring" viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="24" r="22"/><circle class="play__bar" cx="24" cy="24" r="22"/></svg><svg class="play__icon" aria-hidden="true"><use href="#i-play"/></svg><svg class="play__pause" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M7 5h3.5v14H7zM13.5 5H17v14h-3.5z"/></svg></button>
           </div>
-          <h3 class="song-title">مش لعبة <span lang="en" dir="ltr">Mesh Le3ba</span></h3>
+          <h3 class="song-title"><a href="/mesh-le3ba/">مش لعبة</a> <span lang="en" dir="ltr">Mesh Le3ba</span></h3>
+          <a class="song-page" href="/mesh-le3ba/">الكلمات والتفاصيل ←</a>
           <div class="song-links">
             <span class="song-year" dir="ltr">2026</span>
             <a href="https://open.spotify.com/track/0DWMpXgS6Q3hBbeqWvTqvG" target="_blank" rel="noopener" aria-label="Spotify"><svg><use href="#i-spotify"/></svg></a>
@@ -604,7 +663,8 @@
             <a class="cover" href="https://open.spotify.com/track/61N58LukOCpYvQfLchpFJu" target="_blank" rel="noopener" style="--img:url('covers/enta-el-habib.jpg')" aria-label="انت الحبيب على Spotify"><span class="cover__ph">انت الحبيب</span></a>
             <button class="play" type="button" data-audio="audio/enta-el-habib.mp3" aria-label="اسمع مقطع من انت الحبيب"><svg class="play__ring" viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="24" r="22"/><circle class="play__bar" cx="24" cy="24" r="22"/></svg><svg class="play__icon" aria-hidden="true"><use href="#i-play"/></svg><svg class="play__pause" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M7 5h3.5v14H7zM13.5 5H17v14h-3.5z"/></svg></button>
           </div>
-          <h3 class="song-title">انت الحبيب <span lang="en" dir="ltr">Enta El Habib</span></h3>
+          <h3 class="song-title"><a href="/enta-el-habib/">انت الحبيب</a> <span lang="en" dir="ltr">Enta El Habib</span></h3>
+          <a class="song-page" href="/enta-el-habib/">الكلمات والتفاصيل ←</a>
           <div class="song-links">
             <span class="song-year" dir="ltr">2024</span>
             <a href="https://open.spotify.com/track/61N58LukOCpYvQfLchpFJu" target="_blank" rel="noopener" aria-label="Spotify"><svg><use href="#i-spotify"/></svg></a>
@@ -676,6 +736,12 @@
         <p class="eyebrow">FOLLOW</p>
         <h2 id="follow-h">تابعني</h2>
       </div>
+      <!-- WhatsApp channel: put the channel link in href to show this card (stays hidden while href is empty) -->
+      <a class="channel" href="" target="_blank" rel="noopener" hidden>
+        <svg aria-hidden="true"><use href="#i-whatsapp"/></svg>
+        <span><b>اعرف بالجديد أول بأول</b><i lang="en" dir="ltr">Join the WhatsApp channel</i></span>
+        <em>انضم ←</em>
+      </a>
       <ul class="socials">
         <li><a href="https://www.instagram.com/wasem_abdelhady/" target="_blank" rel="noopener" aria-label="Instagram"><svg><use href="#i-instagram"/></svg><span>Instagram</span></a></li>
         <li><a href="https://www.tiktok.com/@wasemabdelhady" target="_blank" rel="noopener" aria-label="TikTok"><svg><use href="#i-tiktok"/></svg><span>TikTok</span></a></li>
@@ -706,6 +772,7 @@
           <span class="contact__value" dir="ltr">+20 10 1092 6863</span>
         </a>
       </div>
+      <a class="press-link" href="/press/">Press Kit · ملف صحفي ←</a>
     </section>
 
   </main>
@@ -732,6 +799,39 @@
   </footer>
 
   <script>
+    // ===== Next release =====
+    // Set this a week or two before a single drops; leave it null otherwise.
+    // { ar: 'اسم الأغنية', en: 'Song Name', date: '2026-12-01T18:00:00+02:00', presave: 'https://distrokid.com/hyperfollow/...', cover: 'covers/next.jpg' }
+    var NEXT_RELEASE = null;
+
+    (function () {
+      var r = NEXT_RELEASE, sec = document.getElementById('soon');
+      if (!r || !sec) return;
+      var end = new Date(r.date).getTime();
+      if (!(end > Date.now())) return;
+      sec.querySelector('.soon__title').innerHTML = '';
+      sec.querySelector('.soon__title').append(r.ar, Object.assign(document.createElement('span'), { textContent: r.en || '', lang: 'en', dir: 'ltr' }));
+      sec.querySelector('.soon__date').textContent = new Date(r.date).toLocaleDateString('ar-EG-u-nu-latn', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+      if (r.cover) { var c = sec.querySelector('.soon__cover'); c.classList.add('has-img'); c.querySelector('img').src = r.cover; c.querySelector('img').alt = 'غلاف ' + r.ar; }
+      var cta = sec.querySelector('.soon__cta');
+      if (r.presave) cta.href = r.presave; else cta.remove();
+      var u = {}; sec.querySelectorAll('[data-u]').forEach(function (b) { u[b.dataset.u] = b; });
+      function tick() {
+        var t = Math.max(0, end - Date.now());
+        if (!t) { sec.hidden = true; return; }
+        u.d.textContent = Math.floor(t / 864e5);
+        u.h.textContent = Math.floor(t / 36e5) % 24;
+        u.m.textContent = Math.floor(t / 6e4) % 60;
+        u.s.textContent = Math.floor(t / 1e3) % 60;
+        setTimeout(tick, 1000);
+      }
+      sec.hidden = false;
+      tick();
+    })();
+
+    // WhatsApp channel card appears only once it has a link
+    document.querySelectorAll('a.channel').forEach(function (a) { if (a.getAttribute('href')) a.hidden = false; });
+
     // Hero loop: skip on reduced motion or data saver; fade in only once it is actually playing
     (function () {
       var v = document.querySelector('.hero__video');

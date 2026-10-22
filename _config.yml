@@ -1,0 +1,4 @@
+# GitHub Pages: keep the build tools and notes out of the published site
+exclude:
+  - tools
+  - CLAUDE.md

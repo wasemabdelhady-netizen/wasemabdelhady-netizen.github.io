@@ -214,13 +214,26 @@
       radial-gradient(120% 90% at 20% 0%, rgba(224,164,88,.35), transparent 60%),
       #17140f;
     display:flex; align-items:flex-end; justify-content:flex-start;
-    box-shadow:0 20px 50px rgba(0,0,0,.5);
   }
   .cover::before { content:""; position:absolute; inset:0; z-index:1; background:var(--img, none) center/cover no-repeat; }
   .cover__ph {
     padding:16px; font-family:var(--ar-display); font-weight:700; font-size:20px; color:rgba(224,164,88,.8);
   }
   .cover { isolation:isolate; text-decoration:none; }
+
+  /* Per-song colour: each card glows in its own cover's palette (--amb ambient, --acc accent) */
+  .song, .latest { --amb:var(--gold); --acc:var(--gold); }
+  .song .cover, .latest .cover {
+    box-shadow:0 18px 50px -14px color-mix(in srgb, var(--amb) 75%, transparent);
+    transition:transform .3s ease, box-shadow .4s ease;
+  }
+  .song:hover .cover, .song:focus-within .cover {
+    box-shadow:0 26px 70px -10px var(--amb), 0 0 0 1px color-mix(in srgb, var(--acc) 45%, transparent);
+  }
+  .song:hover .song-links a, .song:focus-within .song-links a { border-color:color-mix(in srgb, var(--acc) 45%, transparent); }
+  .latest .cover {
+    box-shadow:0 40px 140px -30px var(--amb), 0 0 90px -40px var(--acc), 0 0 0 1px color-mix(in srgb, var(--acc) 25%, transparent);
+  }
 
   /* Latest release */
   .latest { display:grid; gap:24px; }
@@ -254,7 +267,6 @@
   }
   .song-links a:hover { border-color:var(--gold); background:rgba(224,164,88,.08); }
   .song-links svg { width:16px; height:16px; }
-  .song .cover { transition:transform .3s ease; }
   .song .cover:hover { transform:translateY(-4px); }
 
   /* Videos */
@@ -381,7 +393,7 @@
         <p class="eyebrow">LATEST RELEASE</p>
         <h2 id="latest-h">أحدث إصدار</h2>
       </div>
-      <div class="latest">
+      <div class="latest" style="--amb:#2b56a0;--acc:#e73540">
         <div class="cover cover--lg" style="--img:url('covers/ba2olak-eh.jpg')" role="img" aria-label="غلاف بقولك ايه — Ba2olak Eh">
           <span class="cover__ph">بقولك ايه</span>
         </div>
@@ -409,7 +421,7 @@
         <h2 id="music-h">الأغاني</h2>
       </div>
       <div class="songs">
-        <article class="song">
+        <article class="song" style="--amb:#2b56a0;--acc:#e73540">
           <a class="cover" href="https://open.spotify.com/album/1ZUtBNTMqPlJMOqx9mjsww" target="_blank" rel="noopener" style="--img:url('covers/ba2olak-eh.jpg')" aria-label="بقولك ايه على Spotify"><span class="cover__ph">بقولك ايه</span></a>
           <h3 class="song-title">بقولك ايه <span lang="en" dir="ltr">Ba2olak Eh</span></h3>
           <div class="song-links">
@@ -420,7 +432,7 @@
             <a href="https://www.youtube.com/watch?v=SYH-gLZuNs4" target="_blank" rel="noopener" aria-label="YouTube"><svg><use href="#i-youtube"/></svg></a>
           </div>
         </article>
-        <article class="song">
+        <article class="song" style="--amb:#04899a;--acc:#e78e22">
           <a class="cover" href="https://open.spotify.com/track/0DWMpXgS6Q3hBbeqWvTqvG" target="_blank" rel="noopener" style="--img:url('covers/mesh-le3ba.jpg')" aria-label="مش لعبة على Spotify"><span class="cover__ph">مش لعبة</span></a>
           <h3 class="song-title">مش لعبة <span lang="en" dir="ltr">Mesh Le3ba</span></h3>
           <div class="song-links">
@@ -431,7 +443,7 @@
             <a href="https://www.youtube.com/watch?v=2M8zF7OjcY8" target="_blank" rel="noopener" aria-label="YouTube"><svg><use href="#i-youtube"/></svg></a>
           </div>
         </article>
-        <article class="song">
+        <article class="song" style="--amb:#2a4f94;--acc:#f18c25">
           <a class="cover" href="https://open.spotify.com/track/61N58LukOCpYvQfLchpFJu" target="_blank" rel="noopener" style="--img:url('covers/enta-el-habib.jpg')" aria-label="انت الحبيب على Spotify"><span class="cover__ph">انت الحبيب</span></a>
           <h3 class="song-title">انت الحبيب <span lang="en" dir="ltr">Enta El Habib</span></h3>
           <div class="song-links">

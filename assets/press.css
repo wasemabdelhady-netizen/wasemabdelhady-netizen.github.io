@@ -19,7 +19,7 @@
 
 .photos { display:grid; grid-template-columns:repeat(2, 1fr); gap:14px; }
 .photo { position:relative; display:block; color:var(--text); text-decoration:none; border-radius:12px; overflow:hidden; background:#141210; border:1px solid var(--line); }
-.photo img { width:100%; aspect-ratio:1; object-fit:cover; object-position:50% 20%; }
+.photo img { width:100%; aspect-ratio:1; object-fit:cover; object-position:50% 20%; display:block; }
 .photo span { display:block; padding:10px 12px 12px; }
 .photo b { display:block; font-size:13px; }
 .photo i { font-style:normal; font-family:var(--en); font-size:10px; letter-spacing:.06em; color:var(--muted); }

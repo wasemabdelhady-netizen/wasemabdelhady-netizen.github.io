@@ -276,6 +276,20 @@
   }
   .latest .cover { box-shadow:0 0 0 1px color-mix(in srgb, var(--acc) 25%, transparent); }
 
+  /* Coming soon: countdown + pre-save, driven by NEXT_RELEASE */
+  .soon__body { display:grid; gap:24px; }
+  .soon__cover { width:min(300px, 70vw); aspect-ratio:1; border-radius:14px; overflow:hidden; background:#17140f; box-shadow:0 0 0 1px rgba(224,164,88,.3), 0 30px 80px -30px rgba(224,164,88,.45); }
+  .soon__cover img { width:100%; height:100%; object-fit:cover; }
+  .soon__cover:not(.has-img) { display:none; }
+  .soon__title { font-family:var(--ar-display); font-weight:700; font-size:clamp(32px, 9vw, 48px); line-height:1.2; }
+  .soon__title span { display:block; text-align:right; font-family:var(--en); font-size:13px; letter-spacing:.14em; color:var(--muted); margin-top:4px; }
+  .soon__date { margin-top:8px; color:var(--muted); }
+  .countdown { display:grid; grid-template-columns:repeat(4, 1fr); gap:10px; margin:22px 0 26px; max-width:420px; }
+  .countdown div { text-align:center; padding:14px 4px; border-radius:12px; background:rgba(245,239,230,.04); border:1px solid rgba(224,164,88,.25); }
+  .countdown b { display:block; font-family:var(--en); font-weight:800; font-size:clamp(24px, 7vw, 34px); color:var(--gold); font-variant-numeric:tabular-nums; }
+  .countdown span { font-size:12px; color:var(--muted); }
+  @media (min-width:900px) { .soon__body { grid-template-columns:300px 1fr; gap:48px; align-items:center; } }
+
   /* Latest release */
   .latest { display:grid; gap:24px; }
   .latest .cover { width:100%; }
@@ -527,6 +541,30 @@
   <main>
 
     <!-- ===== أحدث إصدار ===== -->
+    <!-- ===== قريباً =====
+         Hidden until NEXT_RELEASE (in the script at the bottom) has a future date.
+         It disappears by itself once that date passes. -->
+    <section class="section soon" id="soon" aria-labelledby="soon-h" hidden>
+      <div class="section__head">
+        <p class="eyebrow">COMING SOON</p>
+        <h2 id="soon-h">قريباً</h2>
+      </div>
+      <div class="soon__body">
+        <div class="soon__cover"><img alt="" width="900" height="900"></div>
+        <div>
+          <h3 class="soon__title"></h3>
+          <p class="soon__date"></p>
+          <div class="countdown" aria-live="off">
+            <div><b data-u="d">0</b><span>يوم</span></div>
+            <div><b data-u="h">0</b><span>ساعة</span></div>
+            <div><b data-u="m">0</b><span>دقيقة</span></div>
+            <div><b data-u="s">0</b><span>ثانية</span></div>
+          </div>
+          <a class="btn btn--solid soon__cta" target="_blank" rel="noopener">Pre-save</a>
+        </div>
+      </div>
+    </section>
+
     <section class="section" id="latest" aria-labelledby="latest-h">
       <div class="section__head">
         <p class="eyebrow">LATEST RELEASE</p>
@@ -741,6 +779,36 @@
   </footer>
 
   <script>
+    // ===== Next release =====
+    // Set this a week or two before a single drops; leave it null otherwise.
+    // { ar: 'اسم الأغنية', en: 'Song Name', date: '2026-12-01T18:00:00+02:00', presave: 'https://distrokid.com/hyperfollow/...', cover: 'covers/next.jpg' }
+    var NEXT_RELEASE = null;
+
+    (function () {
+      var r = NEXT_RELEASE, sec = document.getElementById('soon');
+      if (!r || !sec) return;
+      var end = new Date(r.date).getTime();
+      if (!(end > Date.now())) return;
+      sec.querySelector('.soon__title').innerHTML = '';
+      sec.querySelector('.soon__title').append(r.ar, Object.assign(document.createElement('span'), { textContent: r.en || '', lang: 'en', dir: 'ltr' }));
+      sec.querySelector('.soon__date').textContent = new Date(r.date).toLocaleDateString('ar-EG-u-nu-latn', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+      if (r.cover) { var c = sec.querySelector('.soon__cover'); c.classList.add('has-img'); c.querySelector('img').src = r.cover; c.querySelector('img').alt = 'غلاف ' + r.ar; }
+      var cta = sec.querySelector('.soon__cta');
+      if (r.presave) cta.href = r.presave; else cta.remove();
+      var u = {}; sec.querySelectorAll('[data-u]').forEach(function (b) { u[b.dataset.u] = b; });
+      function tick() {
+        var t = Math.max(0, end - Date.now());
+        if (!t) { sec.hidden = true; return; }
+        u.d.textContent = Math.floor(t / 864e5);
+        u.h.textContent = Math.floor(t / 36e5) % 24;
+        u.m.textContent = Math.floor(t / 6e4) % 60;
+        u.s.textContent = Math.floor(t / 1e3) % 60;
+        setTimeout(tick, 1000);
+      }
+      sec.hidden = false;
+      tick();
+    })();
+
     // Hero loop: skip on reduced motion or data saver; fade in only once it is actually playing
     (function () {
       var v = document.querySelector('.hero__video');

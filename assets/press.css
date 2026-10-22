@@ -29,3 +29,11 @@
 .platforms b { font-size:14px; }
 
 @media (min-width:760px) { .photos { grid-template-columns:repeat(3, 1fr); } }
+
+.qr-note { margin:-6px 0 16px; }
+.qr-grid { display:grid; grid-template-columns:repeat(2, minmax(0, 220px)); gap:14px; }
+.qr-grid .photo img { object-position:center; }
+.note a { color:var(--gold); font-weight:700; text-decoration:none; }
+/* the download badge would sit on the QR's finder pattern: show a label under the code instead */
+.qr-grid .photo svg { display:none; }
+.qr-grid .photo::after { content:"تحميل ↓"; display:block; padding:8px 0 10px; text-align:center; font-weight:700; font-size:13px; color:var(--gold); }

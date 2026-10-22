@@ -153,7 +153,7 @@
   .btn--line  { border:1.5px solid var(--gold); color:var(--gold); }
   .btn:hover { transform:translateY(-2px); }
   .btn--line:hover { background:rgba(224,164,88,.1); }
-  .btn:focus-visible { outline:2px solid var(--text); outline-offset:3px; }
+  a:focus-visible, button:focus-visible { outline:2px solid var(--gold); outline-offset:3px; }
 
   @keyframes fadeIn {
     from { opacity:0; transform:translateY(12px); }
@@ -185,9 +185,151 @@
     .hero__cta { justify-content:flex-start; }
   }
 
+  /* ---------- SECTIONS ---------- */
+  .section {
+    max-width:1100px; margin:0 auto;
+    padding:72px 20px;
+    border-top:1px solid rgba(245,239,230,.07);
+  }
+  .section__head { margin-bottom:28px; }
+  .eyebrow {
+    font-family:var(--en); font-weight:700;
+    font-size:11px; letter-spacing:.38em;
+    color:var(--gold); direction:ltr; text-align:right;
+  }
+  .section h2 {
+    margin-top:6px;
+    font-family:var(--ar-display); font-weight:700;
+    font-size:clamp(30px, 8vw, 44px); line-height:1.2;
+  }
+
+  .song-title { font-family:var(--ar-display); font-weight:700; font-size:22px; line-height:1.3; }
+  .song-title span { display:block; text-align:right; font-family:var(--en); font-weight:700; font-size:13px; letter-spacing:.06em; color:var(--muted); margin-top:2px; }
+  .song-meta { margin-top:6px; font-size:14px; color:var(--muted); }
+
+  /* Covers: real image via --img, gold placeholder underneath until the file exists */
+  .cover {
+    position:relative; aspect-ratio:1; border-radius:14px; overflow:hidden;
+    background:
+      radial-gradient(120% 90% at 20% 0%, rgba(224,164,88,.35), transparent 60%),
+      #17140f;
+    display:flex; align-items:flex-end; justify-content:flex-start;
+    box-shadow:0 20px 50px rgba(0,0,0,.5);
+  }
+  .cover::before { content:""; position:absolute; inset:0; z-index:1; background:var(--img, none) center/cover no-repeat; }
+  .cover__ph {
+    padding:16px; font-family:var(--ar-display); font-weight:700; font-size:20px; color:rgba(224,164,88,.8);
+  }
+  .cover { isolation:isolate; text-decoration:none; }
+
+  /* Latest release */
+  .latest { display:grid; gap:24px; }
+  .latest .cover { max-width:420px; width:100%; }
+  .latest .song-title { font-size:30px; }
+  .spotify-embed { display:block; margin-top:20px; border-radius:12px; border:0; background:#181818; }
+  .platforms { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:16px; }
+  .pill {
+    display:flex; align-items:center; justify-content:center; gap:8px;
+    height:46px; border-radius:12px;
+    background:rgba(245,239,230,.05); border:1px solid rgba(245,239,230,.1);
+    color:var(--text); text-decoration:none; font-family:var(--en); font-weight:700; font-size:13px;
+    transition:border-color .2s, background .2s;
+  }
+  .pill svg { width:18px; height:18px; color:var(--gold); }
+  .pill:hover { border-color:var(--gold); background:rgba(224,164,88,.08); }
+
+  /* Songs */
+  .songs { display:grid; gap:16px; }
+  .song {
+    display:grid; grid-template-columns:104px 1fr; gap:6px 16px; align-items:center;
+  }
+  .song .cover { grid-row:span 2; border-radius:10px; }
+  .song .cover__ph { font-size:13px; padding:10px; }
+  .song .song-title { align-self:end; }
+  .song-links { align-self:start; display:flex; align-items:center; gap:4px; }
+  .song-year { font-size:13px; color:var(--muted); margin-inline-end:6px; }
+  .song-links a {
+    width:36px; height:36px; display:grid; place-items:center; border-radius:50%;
+    color:var(--gold); border:1px solid rgba(245,239,230,.1); transition:border-color .2s, background .2s;
+  }
+  .song-links a:hover { border-color:var(--gold); background:rgba(224,164,88,.08); }
+  .song-links svg { width:16px; height:16px; }
+  .song .cover { transition:transform .3s ease; }
+  .song .cover:hover { transform:translateY(-4px); }
+
+  /* Videos */
+  .videos { display:grid; gap:16px; }
+  .video {
+    position:relative; width:100%; aspect-ratio:16/9; border:0; border-radius:14px; overflow:hidden;
+    background:#141210 center/cover no-repeat; cursor:pointer; color:var(--text);
+    display:flex; align-items:center; justify-content:center;
+  }
+  iframe.video { display:block; }
+  .video::after { content:""; position:absolute; inset:0; background:linear-gradient(to top, rgba(10,10,10,.85), rgba(10,10,10,.1) 55%); }
+  .video__play {
+    position:relative; z-index:1; width:64px; height:64px; border-radius:50%;
+    background:var(--gold); color:var(--bg); display:flex; align-items:center; justify-content:center;
+    box-shadow:0 10px 30px rgba(224,164,88,.3); transition:transform .2s;
+  }
+  .video__play svg { width:26px; height:26px; margin-left:3px; }
+  .video:hover .video__play { transform:scale(1.06); }
+  .video__label {
+    position:absolute; z-index:1; bottom:14px; right:16px; left:16px; text-align:right;
+    font-family:var(--ar-display); font-weight:700; font-size:18px;
+  }
+  .video__label span { display:block; text-align:right; font-family:var(--en); font-size:12px; color:var(--muted); letter-spacing:.05em; }
+  .video.is-pending { cursor:default; border:1px dashed rgba(224,164,88,.35); }
+  .video.is-pending .video__play { background:transparent; color:rgba(224,164,88,.5); border:1.5px solid rgba(224,164,88,.35); box-shadow:none; }
+  .more { display:inline-block; margin-top:22px; color:var(--gold); text-decoration:none; font-weight:700; }
+
+  /* About */
+  .about { display:grid; gap:20px; max-width:760px; }
+  .about__ar { font-size:18px; line-height:2; }
+  .about__en { font-size:15px; line-height:1.8; color:var(--muted); text-align:left; }
+
+  /* Follow */
+  .socials { list-style:none; display:grid; grid-template-columns:repeat(4, 1fr); gap:12px; }
+  .socials a {
+    display:flex; flex-direction:column; align-items:center; gap:8px;
+    padding:18px 4px; border-radius:14px;
+    background:rgba(245,239,230,.04); border:1px solid rgba(245,239,230,.08);
+    color:var(--text); text-decoration:none; transition:border-color .2s, background .2s;
+  }
+  .socials svg { width:26px; height:26px; color:var(--gold); }
+  .socials span { font-family:var(--en); font-weight:700; font-size:10px; letter-spacing:.04em; color:var(--muted); }
+  .socials a:hover { border-color:var(--gold); background:rgba(224,164,88,.08); }
+
+  /* Contact */
+  .section--contact { text-align:center; }
+  .section--contact .eyebrow { text-align:center; }
+  .contact__lead { color:var(--muted); font-size:16px; }
+  .contact { display:flex; gap:12px; justify-content:center; flex-wrap:wrap; margin-top:24px; }
+  .contact .btn { gap:10px; }
+  .contact .btn svg { width:20px; height:20px; }
+
+  .footer { padding:32px 20px calc(32px + env(safe-area-inset-bottom)); text-align:center; font-size:12px; color:rgba(245,239,230,.35); border-top:1px solid rgba(245,239,230,.07); }
+
+  @media (min-width:700px) {
+    .socials { grid-template-columns:repeat(7, 1fr); }
+    .videos { grid-template-columns:1fr 1fr; }
+    .songs { grid-template-columns:repeat(3, 1fr); gap:28px; }
+    .song { display:flex; flex-direction:column; align-items:stretch; gap:0; }
+    .song .cover { border-radius:14px; }
+    .song .cover__ph { font-size:20px; padding:16px; }
+    .song .song-title { margin-top:14px; align-self:stretch; }
+    .song-links { margin-top:10px; align-self:stretch; }
+    .video--main { grid-column:1 / -1; }
+  }
+  @media (min-width:900px) {
+    .section { padding:110px 40px; }
+    .latest { grid-template-columns:minmax(0, 420px) 1fr; gap:48px; align-items:center; }
+    .about { grid-template-columns:1fr 1fr; max-width:none; gap:48px; }
+  }
+
   @media (prefers-reduced-motion:reduce) {
     html { scroll-behavior:auto; }
     .hero__content { animation:none; }
+    .song .cover, .video__play { transition:none; }
   }
 </style>
 </head>
@@ -208,11 +350,183 @@
     </div>
   </header>
 
+  <!-- Icon sprite -->
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <symbol id="i-spotify" viewBox="0 0 24 24"><path fill="currentColor" d="M12 0a12 12 0 1 0 0 24 12 12 0 0 0 0-24zm5.5 17.3a.75.75 0 0 1-1 .25c-2.8-1.7-6.3-2.1-10.5-1.1a.75.75 0 1 1-.33-1.46c4.5-1 8.4-.6 11.5 1.3.36.22.47.69.33 1.02zm1.5-3.3a.94.94 0 0 1-1.3.3c-3.2-2-8-2.5-11.8-1.4a.94.94 0 1 1-.54-1.8c4.3-1.3 9.6-.7 13.3 1.6.44.27.58.86.34 1.3zm.13-3.4C15.4 5.9 9 5.7 5.3 6.8a1.13 1.13 0 1 1-.65-2.16C8.9 3.4 16 3.6 20.3 6.2a1.13 1.13 0 0 1-1.17 1.93z"/></symbol>
+    <symbol id="i-apple" viewBox="0 0 24 24"><path fill="currentColor" d="M16.5 3.2c0-.22-.04-.4-.35-.35l-7.9 1.6c-.3.06-.4.2-.4.5v9.06a2.7 2.7 0 0 0-1-.2 2.6 2.6 0 1 0 2.6 2.6V8.05l6.3-1.28v5.06a2.7 2.7 0 0 0-1-.2 2.6 2.6 0 1 0 2.6 2.6V3.2z"/></symbol>
+    <symbol id="i-anghami" viewBox="0 0 24 24"><path fill="currentColor" d="M9 3v12.2A4 4 0 1 0 11 18V7h6V3H9z"/></symbol>
+    <symbol id="i-youtube" viewBox="0 0 24 24"><path fill="currentColor" d="M23.5 6.2a3 3 0 0 0-2.1-2.1C19.5 3.5 12 3.5 12 3.5s-7.5 0-9.4.6A3 3 0 0 0 .5 6.2 31 31 0 0 0 0 12a31 31 0 0 0 .5 5.8 3 3 0 0 0 2.1 2.1c1.9.6 9.4.6 9.4.6s7.5 0 9.4-.6a3 3 0 0 0 2.1-2.1A31 31 0 0 0 24 12a31 31 0 0 0-.5-5.8zM9.6 15.6V8.4l6.3 3.6-6.3 3.6z"/></symbol>
+    <symbol id="i-instagram" viewBox="0 0 24 24"><path fill="currentColor" d="M12 2.2c3.2 0 3.6 0 4.9.07 1.2.06 1.8.25 2.2.42.56.22.96.48 1.38.9.42.42.68.82.9 1.38.17.4.36 1 .42 2.2.07 1.3.07 1.7.07 4.9s0 3.6-.07 4.9c-.06 1.2-.25 1.8-.42 2.2a3.7 3.7 0 0 1-.9 1.38c-.42.42-.82.68-1.38.9-.4.17-1 .36-2.2.42-1.3.07-1.7.07-4.9.07s-3.6 0-4.9-.07c-1.2-.06-1.8-.25-2.2-.42a3.7 3.7 0 0 1-1.38-.9 3.7 3.7 0 0 1-.9-1.38c-.17-.4-.36-1-.42-2.2C2.2 15.6 2.2 15.2 2.2 12s0-3.6.07-4.9c.06-1.2.25-1.8.42-2.2.22-.56.48-.96.9-1.38.42-.42.82-.68 1.38-.9.4-.17 1-.36 2.2-.42C8.4 2.2 8.8 2.2 12 2.2zm0 1.8c-3.1 0-3.5 0-4.7.07-1.1.05-1.7.24-2.1.4-.53.2-.9.45-1.3.85-.4.4-.65.77-.85 1.3-.16.4-.35 1-.4 2.1C2.7 9.9 2.7 10.3 2.7 12s0 2.1.05 3.2c.05 1.1.24 1.7.4 2.1.2.53.45.9.85 1.3.4.4.77.65 1.3.85.4.16 1 .35 2.1.4 1.2.07 1.6.07 4.7.07s3.5 0 4.7-.07c1.1-.05 1.7-.24 2.1-.4.53-.2.9-.45 1.3-.85.4-.4.65-.77.85-1.3.16-.4.35-1 .4-2.1.07-1.1.07-1.5.07-3.2s0-2.1-.07-3.2c-.05-1.1-.24-1.7-.4-2.1a3.5 3.5 0 0 0-.85-1.3 3.5 3.5 0 0 0-1.3-.85c-.4-.16-1-.35-2.1-.4C15.5 4 15.1 4 12 4zm0 3.1a4.9 4.9 0 1 1 0 9.8 4.9 4.9 0 0 1 0-9.8zm0 8.07a3.17 3.17 0 1 0 0-6.34 3.17 3.17 0 0 0 0 6.34zm6.24-8.28a1.14 1.14 0 1 1-2.28 0 1.14 1.14 0 0 1 2.28 0z"/></symbol>
+    <symbol id="i-tiktok" viewBox="0 0 24 24"><path fill="currentColor" d="M16.6 5.8a4.3 4.3 0 0 1-1-2.8h-3.3v13.2a2.4 2.4 0 1 1-2.4-2.4c.25 0 .5.04.73.11V8.5a5.8 5.8 0 1 0 5 5.74V8.8a7.5 7.5 0 0 0 4.36 1.4V6.9a4.3 4.3 0 0 1-3.36-1.1z"/></symbol>
+    <symbol id="i-facebook" viewBox="0 0 24 24"><path fill="currentColor" d="M24 12a12 12 0 1 0-13.9 11.9v-8.4H7.1V12h3V9.4c0-3 1.8-4.6 4.5-4.6 1.3 0 2.6.23 2.6.23v2.9h-1.5c-1.5 0-1.9.9-1.9 1.8V12h3.3l-.53 3.5h-2.8v8.4A12 12 0 0 0 24 12z"/></symbol>
+    <symbol id="i-mail" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" d="M3 5.5h18v13H3z M3.5 6l8.5 7 8.5-7"/></symbol>
+    <symbol id="i-whatsapp" viewBox="0 0 24 24"><path fill="currentColor" d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2zm0 18.2c-1.5 0-3-.4-4.3-1.2l-.3-.2-3 .8.8-2.9-.2-.3A8.2 8.2 0 1 1 12 20.2zm4.5-6.1c-.25-.12-1.46-.72-1.69-.8-.23-.08-.39-.12-.55.12-.16.25-.63.8-.78.97-.14.16-.29.18-.53.06-.25-.12-1.04-.38-1.98-1.22-.73-.65-1.23-1.46-1.37-1.7-.14-.25-.02-.38.11-.5.11-.11.25-.29.37-.43.12-.14.16-.25.25-.41.08-.16.04-.31-.02-.43-.06-.12-.55-1.33-.76-1.82-.2-.48-.4-.41-.55-.42h-.47a.9.9 0 0 0-.65.31c-.23.25-.86.84-.86 2.04s.88 2.37 1 2.53c.12.16 1.73 2.64 4.2 3.7.59.25 1.05.4 1.4.52.59.19 1.13.16 1.55.1.47-.07 1.46-.6 1.67-1.17.2-.58.2-1.07.14-1.17-.06-.1-.22-.16-.47-.29z"/></symbol>
+    <symbol id="i-play" viewBox="0 0 24 24"><path fill="currentColor" d="M8 5v14l11-7z"/></symbol>
+  </svg>
+
   <main>
-    <!-- باقي الأقسام بعد الموافقة على الـ Hero -->
-    <section id="latest"></section>
-    <section id="follow"></section>
+
+    <!-- ===== أحدث إصدار ===== -->
+    <section class="section" id="latest" aria-labelledby="latest-h">
+      <div class="section__head">
+        <p class="eyebrow">LATEST RELEASE</p>
+        <h2 id="latest-h">أحدث إصدار</h2>
+      </div>
+      <div class="latest">
+        <div class="cover cover--lg" style="--img:url('covers/ba2olak-eh.jpg')" role="img" aria-label="غلاف بقولك ايه — Ba2olak Eh">
+          <span class="cover__ph">بقولك ايه</span>
+        </div>
+        <div class="latest__body">
+          <h3 class="song-title">بقولك ايه <span lang="en" dir="ltr">Ba2olak Eh</span></h3>
+          <p class="song-meta"><span dir="ltr">Single · 2026</span></p>
+          <iframe class="spotify-embed" title="بقولك ايه على Spotify"
+            src="https://open.spotify.com/embed/album/1ZUtBNTMqPlJMOqx9mjsww?utm_source=generator&theme=0"
+            width="100%" height="152" frameborder="0" loading="lazy"
+            allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"></iframe>
+          <div class="platforms">
+            <a class="pill" href="https://open.spotify.com/album/1ZUtBNTMqPlJMOqx9mjsww" target="_blank" rel="noopener"><svg><use href="#i-spotify"/></svg>Spotify</a>
+            <a class="pill" href="https://music.apple.com/eg/album/%D8%A8%D9%82%D9%88%D9%84%D9%83-%D8%A7%D9%8A%D9%87-ba2olak-eh-single/6820402630" target="_blank" rel="noopener"><svg><use href="#i-apple"/></svg>Apple Music</a>
+            <a class="pill" href="https://play.anghami.com/song/1306308384" target="_blank" rel="noopener"><svg><use href="#i-anghami"/></svg>Anghami</a>
+            <a class="pill" href="https://www.youtube.com/watch?v=SYH-gLZuNs4" target="_blank" rel="noopener"><svg><use href="#i-youtube"/></svg>YouTube</a>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== الأغاني ===== -->
+    <section class="section" id="music" aria-labelledby="music-h">
+      <div class="section__head">
+        <p class="eyebrow">MUSIC</p>
+        <h2 id="music-h">الأغاني</h2>
+      </div>
+      <div class="songs">
+        <article class="song">
+          <a class="cover" href="https://open.spotify.com/album/1ZUtBNTMqPlJMOqx9mjsww" target="_blank" rel="noopener" style="--img:url('covers/ba2olak-eh.jpg')" aria-label="بقولك ايه على Spotify"><span class="cover__ph">بقولك ايه</span></a>
+          <h3 class="song-title">بقولك ايه <span lang="en" dir="ltr">Ba2olak Eh</span></h3>
+          <div class="song-links">
+            <span class="song-year" dir="ltr">2026</span>
+            <a href="https://open.spotify.com/album/1ZUtBNTMqPlJMOqx9mjsww" target="_blank" rel="noopener" aria-label="Spotify"><svg><use href="#i-spotify"/></svg></a>
+            <a href="https://music.apple.com/eg/album/%D8%A8%D9%82%D9%88%D9%84%D9%83-%D8%A7%D9%8A%D9%87-ba2olak-eh-single/6820402630" target="_blank" rel="noopener" aria-label="Apple Music"><svg><use href="#i-apple"/></svg></a>
+            <a href="https://play.anghami.com/song/1306308384" target="_blank" rel="noopener" aria-label="Anghami"><svg><use href="#i-anghami"/></svg></a>
+            <a href="https://www.youtube.com/watch?v=SYH-gLZuNs4" target="_blank" rel="noopener" aria-label="YouTube"><svg><use href="#i-youtube"/></svg></a>
+          </div>
+        </article>
+        <article class="song">
+          <a class="cover" href="https://open.spotify.com/track/0DWMpXgS6Q3hBbeqWvTqvG" target="_blank" rel="noopener" style="--img:url('covers/mesh-le3ba.jpg')" aria-label="مش لعبة على Spotify"><span class="cover__ph">مش لعبة</span></a>
+          <h3 class="song-title">مش لعبة <span lang="en" dir="ltr">Mesh Le3ba</span></h3>
+          <div class="song-links">
+            <span class="song-year" dir="ltr">2026</span>
+            <a href="https://open.spotify.com/track/0DWMpXgS6Q3hBbeqWvTqvG" target="_blank" rel="noopener" aria-label="Spotify"><svg><use href="#i-spotify"/></svg></a>
+            <a href="https://music.apple.com/eg/song/%D9%85%D8%B4-%D9%84%D8%B9%D8%A8%D8%A9/6799878765" target="_blank" rel="noopener" aria-label="Apple Music"><svg><use href="#i-apple"/></svg></a>
+            <a href="https://play.anghami.com/song/1294597707" target="_blank" rel="noopener" aria-label="Anghami"><svg><use href="#i-anghami"/></svg></a>
+            <a href="https://www.youtube.com/watch?v=2M8zF7OjcY8" target="_blank" rel="noopener" aria-label="YouTube"><svg><use href="#i-youtube"/></svg></a>
+          </div>
+        </article>
+        <article class="song">
+          <a class="cover" href="https://open.spotify.com/track/61N58LukOCpYvQfLchpFJu" target="_blank" rel="noopener" style="--img:url('covers/enta-el-habib.jpg')" aria-label="انت الحبيب على Spotify"><span class="cover__ph">انت الحبيب</span></a>
+          <h3 class="song-title">انت الحبيب <span lang="en" dir="ltr">Enta El Habib</span></h3>
+          <div class="song-links">
+            <span class="song-year" dir="ltr">2024</span>
+            <a href="https://open.spotify.com/track/61N58LukOCpYvQfLchpFJu" target="_blank" rel="noopener" aria-label="Spotify"><svg><use href="#i-spotify"/></svg></a>
+            <a href="https://music.apple.com/eg/song/enta-el-habib-%D8%A7%D9%86%D8%AA-%D8%A7%D9%84%D8%AD%D8%A8%D9%8A%D8%A8/1781385640" target="_blank" rel="noopener" aria-label="Apple Music"><svg><use href="#i-apple"/></svg></a>
+            <a href="https://play.anghami.com/song/1187145973" target="_blank" rel="noopener" aria-label="Anghami"><svg><use href="#i-anghami"/></svg></a>
+            <a href="https://www.youtube.com/watch?v=XPX0FuAgUc4" target="_blank" rel="noopener" aria-label="YouTube"><svg><use href="#i-youtube"/></svg></a>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <!-- ===== الفيديوهات ===== -->
+    <section class="section" id="videos" aria-labelledby="videos-h">
+      <div class="section__head">
+        <p class="eyebrow">VIDEOS</p>
+        <h2 id="videos-h">الفيديوهات</h2>
+      </div>
+      <!-- data-yt = YouTube video ID (الجزء اللي بعد youtu.be/) -->
+      <div class="videos">
+        <button class="video video--main" type="button" data-yt="SYH-gLZuNs4" aria-label="شغّل كليب بقولك ايه">
+          <span class="video__play"><svg><use href="#i-play"/></svg></span>
+          <span class="video__label">بقولك ايه <span lang="en" dir="ltr">Ba2olak Eh</span></span>
+        </button>
+        <button class="video" type="button" data-yt="2M8zF7OjcY8" aria-label="شغّل فيديو مش لعبة">
+          <span class="video__play"><svg><use href="#i-play"/></svg></span>
+          <span class="video__label">مش لعبة <span lang="en" dir="ltr">Mesh Le3ba</span></span>
+        </button>
+        <button class="video" type="button" data-yt="XPX0FuAgUc4" aria-label="شغّل فيديو انت الحبيب">
+          <span class="video__play"><svg><use href="#i-play"/></svg></span>
+          <span class="video__label">انت الحبيب <span lang="en" dir="ltr">Enta El Habib</span></span>
+        </button>
+      </div>
+      <a class="more" href="https://www.youtube.com/@WaSeMabdelhady" target="_blank" rel="noopener">القناة على يوتيوب ↗ <span lang="en" dir="ltr">YouTube Channel</span></a>
+    </section>
+
+    <!-- ===== عنّي ===== -->
+    <section class="section" id="about" aria-labelledby="about-h">
+      <div class="section__head">
+        <p class="eyebrow">ABOUT</p>
+        <h2 id="about-h">عنّي</h2>
+      </div>
+      <div class="about">
+        <p class="about__ar">وسيم عبد الهادي مطرب وملحّن مصري مستقل من القاهرة. بيكتب ألحانه وبيشتغل على أغانيه من الفكرة لحد ما تخرج للناس، بصوت بيجمع بين البوب المصري والروح الشرقية. أحدث إصداراته «بقولك ايه» (2026).</p>
+        <p class="about__en" lang="en" dir="ltr">Wasem Abdelhady is an independent Egyptian singer and composer based in Cairo. He writes his own melodies and shapes every song from first idea to final release — Egyptian pop with an oriental soul. His latest single, “Ba2olak Eh”, is out now.</p>
+      </div>
+    </section>
+
+    <!-- ===== تابعني ===== -->
+    <section class="section" id="follow" aria-labelledby="follow-h">
+      <div class="section__head">
+        <p class="eyebrow">FOLLOW</p>
+        <h2 id="follow-h">تابعني</h2>
+      </div>
+      <ul class="socials">
+        <li><a href="https://www.instagram.com/wasem_abdelhady/" target="_blank" rel="noopener" aria-label="Instagram"><svg><use href="#i-instagram"/></svg><span>Instagram</span></a></li>
+        <li><a href="https://www.tiktok.com/@wasemabdelhady" target="_blank" rel="noopener" aria-label="TikTok"><svg><use href="#i-tiktok"/></svg><span>TikTok</span></a></li>
+        <li><a href="https://www.youtube.com/@WaSeMabdelhady" target="_blank" rel="noopener" aria-label="YouTube"><svg><use href="#i-youtube"/></svg><span>YouTube</span></a></li>
+        <li><a href="https://www.facebook.com/wasem.hady/" target="_blank" rel="noopener" aria-label="Facebook"><svg><use href="#i-facebook"/></svg><span>Facebook</span></a></li>
+        <li><a href="https://open.spotify.com/artist/58xRdxIQDJv8L8NBSNwBT2" target="_blank" rel="noopener" aria-label="Spotify"><svg><use href="#i-spotify"/></svg><span>Spotify</span></a></li>
+        <li><a href="https://music.apple.com/us/artist/wasem/1704564588" target="_blank" rel="noopener" aria-label="Apple Music"><svg><use href="#i-apple"/></svg><span>Apple Music</span></a></li>
+        <li><a href="https://play.anghami.com/artist/13808792" target="_blank" rel="noopener" aria-label="Anghami"><svg><use href="#i-anghami"/></svg><span>Anghami</span></a></li>
+      </ul>
+    </section>
+
+    <!-- ===== تواصل / حجز ===== -->
+    <section class="section section--contact" id="contact" aria-labelledby="contact-h">
+      <div class="section__head">
+        <p class="eyebrow">BOOKING &amp; CONTACT</p>
+        <h2 id="contact-h">تواصل وحجز</h2>
+      </div>
+      <p class="contact__lead">للحفلات والتعاون والحجز<br><span lang="en" dir="ltr">Bookings, shows &amp; collaborations</span></p>
+      <div class="contact">
+        <!-- TODO: الإيميل — غيّر EMAIL_HERE -->
+        <a class="btn btn--solid" href="mailto:EMAIL_HERE"><svg><use href="#i-mail"/></svg>Email</a>
+        <!-- TODO: واتساب — غيّر WHATSAPP_NUMBER بالرقم بصيغة دولية من غير + (مثال 2010xxxxxxxx) -->
+        <a class="btn btn--line" href="https://wa.me/WHATSAPP_NUMBER" target="_blank" rel="noopener"><svg><use href="#i-whatsapp"/></svg>WhatsApp</a>
+      </div>
+    </section>
+
   </main>
+
+  <footer class="footer">
+    <p dir="ltr">© 2026 Wasem Abdelhady · وسيم عبد الهادي</p>
+  </footer>
+
+  <script>
+    // Click-to-load YouTube: no iframe until the visitor presses play (keeps the page light)
+    document.querySelectorAll('.video').forEach(function (btn) {
+      var id = btn.dataset.yt;
+      if (!id) { btn.disabled = true; btn.classList.add('is-pending'); return; }
+      btn.style.backgroundImage = 'url(https://i.ytimg.com/vi/' + id + '/hqdefault.jpg)';
+      btn.addEventListener('click', function () {
+        var f = document.createElement('iframe');
+        f.className = btn.className;
+        f.src = 'https://www.youtube-nocookie.com/embed/' + id + '?autoplay=1&rel=0';
+        f.title = btn.getAttribute('aria-label');
+        f.allow = 'autoplay; encrypted-media; picture-in-picture; fullscreen';
+        f.allowFullscreen = true;
+        btn.replaceWith(f);
+      });
+    });
+  </script>
 
 </body>
 </html>

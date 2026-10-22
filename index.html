@@ -296,12 +296,17 @@
   .song {
     display:grid; grid-template-columns:104px 1fr; gap:6px 16px; align-items:center;
   }
-  .song .cover-wrap { grid-row:span 2; }
+  .song .cover-wrap { grid-row:span 3; }
   .song .cover { border-radius:10px; }
   .song .cover__ph { font-size:13px; padding:10px; }
   .song .song-title { align-self:end; }
   .song-links { align-self:start; display:flex; align-items:center; gap:4px; }
   .song-year { font-size:13px; color:var(--muted); margin-inline-end:6px; }
+  .song-title a { color:inherit; text-decoration:none; }
+  .song-title a:hover { color:var(--gold); }
+  .song-page { color:var(--gold); font-size:13px; font-weight:700; text-decoration:none; margin-inline-end:8px; }
+  .song-page:hover { text-decoration:underline; }
+  .song .song-page { align-self:center; margin:0; }
   .song-links a {
     width:36px; height:36px; display:grid; place-items:center; border-radius:50%;
     color:var(--gold); border:1px solid rgba(245,239,230,.1); transition:border-color .2s, background .2s;
@@ -467,6 +472,7 @@
     .song .play__icon, .song .play__pause { width:16px; height:16px; }
     .song .cover__ph { font-size:20px; padding:16px; }
     .song .song-title { margin-top:14px; align-self:stretch; }
+    .song .song-page { margin-top:4px; align-self:stretch; }
     .song-links { margin-top:10px; align-self:stretch; }
     .credits { margin-top:14px; }
     .video--main { grid-column:1 / -1; }
@@ -535,7 +541,7 @@
         </div>
         <div class="latest__body">
           <h3 class="song-title">بقولك ايه <span lang="en" dir="ltr">Ba2olak Eh</span></h3>
-          <p class="song-meta"><span dir="ltr">Single · 2026</span></p>
+          <p class="song-meta"><span dir="ltr">Single · 2026</span> · <a class="song-page" href="/ba2olak-eh/">الكلمات والكليب ←</a></p>
           <div class="platforms">
             <a class="pill" href="https://open.spotify.com/album/1ZUtBNTMqPlJMOqx9mjsww" target="_blank" rel="noopener"><svg><use href="#i-spotify"/></svg>Spotify</a>
             <a class="pill" href="https://music.apple.com/eg/album/%D8%A8%D9%82%D9%88%D9%84%D9%83-%D8%A7%D9%8A%D9%87-ba2olak-eh-single/6820402630" target="_blank" rel="noopener"><svg><use href="#i-apple"/></svg>Apple Music</a>
@@ -558,7 +564,8 @@
             <a class="cover" href="https://open.spotify.com/album/1ZUtBNTMqPlJMOqx9mjsww" target="_blank" rel="noopener" style="--img:url('covers/ba2olak-eh.jpg')" aria-label="بقولك ايه على Spotify"><span class="cover__ph">بقولك ايه</span></a>
             <button class="play" type="button" data-audio="audio/ba2olak-eh.mp3" aria-label="اسمع مقطع من بقولك ايه"><svg class="play__ring" viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="24" r="22"/><circle class="play__bar" cx="24" cy="24" r="22"/></svg><svg class="play__icon" aria-hidden="true"><use href="#i-play"/></svg><svg class="play__pause" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M7 5h3.5v14H7zM13.5 5H17v14h-3.5z"/></svg></button>
           </div>
-          <h3 class="song-title">بقولك ايه <span lang="en" dir="ltr">Ba2olak Eh</span></h3>
+          <h3 class="song-title"><a href="/ba2olak-eh/">بقولك ايه</a> <span lang="en" dir="ltr">Ba2olak Eh</span></h3>
+          <a class="song-page" href="/ba2olak-eh/">الكلمات والتفاصيل ←</a>
           <div class="song-links">
             <span class="song-year" dir="ltr">2026</span>
             <a href="https://open.spotify.com/album/1ZUtBNTMqPlJMOqx9mjsww" target="_blank" rel="noopener" aria-label="Spotify"><svg><use href="#i-spotify"/></svg></a>
@@ -581,7 +588,8 @@
             <a class="cover" href="https://open.spotify.com/track/0DWMpXgS6Q3hBbeqWvTqvG" target="_blank" rel="noopener" style="--img:url('covers/mesh-le3ba.jpg')" aria-label="مش لعبة على Spotify"><span class="cover__ph">مش لعبة</span></a>
             <button class="play" type="button" data-audio="audio/mesh-le3ba.mp3" aria-label="اسمع مقطع من مش لعبة"><svg class="play__ring" viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="24" r="22"/><circle class="play__bar" cx="24" cy="24" r="22"/></svg><svg class="play__icon" aria-hidden="true"><use href="#i-play"/></svg><svg class="play__pause" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M7 5h3.5v14H7zM13.5 5H17v14h-3.5z"/></svg></button>
           </div>
-          <h3 class="song-title">مش لعبة <span lang="en" dir="ltr">Mesh Le3ba</span></h3>
+          <h3 class="song-title"><a href="/mesh-le3ba/">مش لعبة</a> <span lang="en" dir="ltr">Mesh Le3ba</span></h3>
+          <a class="song-page" href="/mesh-le3ba/">الكلمات والتفاصيل ←</a>
           <div class="song-links">
             <span class="song-year" dir="ltr">2026</span>
             <a href="https://open.spotify.com/track/0DWMpXgS6Q3hBbeqWvTqvG" target="_blank" rel="noopener" aria-label="Spotify"><svg><use href="#i-spotify"/></svg></a>
@@ -604,7 +612,8 @@
             <a class="cover" href="https://open.spotify.com/track/61N58LukOCpYvQfLchpFJu" target="_blank" rel="noopener" style="--img:url('covers/enta-el-habib.jpg')" aria-label="انت الحبيب على Spotify"><span class="cover__ph">انت الحبيب</span></a>
             <button class="play" type="button" data-audio="audio/enta-el-habib.mp3" aria-label="اسمع مقطع من انت الحبيب"><svg class="play__ring" viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="24" r="22"/><circle class="play__bar" cx="24" cy="24" r="22"/></svg><svg class="play__icon" aria-hidden="true"><use href="#i-play"/></svg><svg class="play__pause" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M7 5h3.5v14H7zM13.5 5H17v14h-3.5z"/></svg></button>
           </div>
-          <h3 class="song-title">انت الحبيب <span lang="en" dir="ltr">Enta El Habib</span></h3>
+          <h3 class="song-title"><a href="/enta-el-habib/">انت الحبيب</a> <span lang="en" dir="ltr">Enta El Habib</span></h3>
+          <a class="song-page" href="/enta-el-habib/">الكلمات والتفاصيل ←</a>
           <div class="song-links">
             <span class="song-year" dir="ltr">2024</span>
             <a href="https://open.spotify.com/track/61N58LukOCpYvQfLchpFJu" target="_blank" rel="noopener" aria-label="Spotify"><svg><use href="#i-spotify"/></svg></a>

@@ -249,13 +249,26 @@
     box-shadow:0 26px 70px -10px var(--amb), 0 0 0 1px color-mix(in srgb, var(--acc) 45%, transparent);
   }
   .song:hover .song-links a, .song:focus-within .song-links a { border-color:color-mix(in srgb, var(--acc) 45%, transparent); }
-  .latest .cover {
-    box-shadow:0 40px 140px -30px var(--amb), 0 0 90px -40px var(--acc), 0 0 0 1px color-mix(in srgb, var(--acc) 25%, transparent);
+  /* Halo behind the latest cover: a radial gradient (not a big blurred shadow) so it always fades out smoothly */
+  #latest { overflow-x:clip; } /* halo may extend past the screen edge on phones */
+  .halo { position:relative; isolation:isolate; max-width:420px; width:100%; }
+  .halo::before {
+    content:""; position:absolute; inset:-28%; z-index:-1; pointer-events:none;
+    background:
+      radial-gradient(closest-side,
+        color-mix(in srgb, var(--amb) 70%, transparent) 0%,
+        color-mix(in srgb, var(--amb) 38%, transparent) 45%,
+        color-mix(in srgb, var(--amb) 12%, transparent) 75%,
+        transparent 100%),
+      radial-gradient(closest-side at 50% 62%,
+        color-mix(in srgb, var(--acc) 22%, transparent) 0%,
+        transparent 100%);
   }
+  .latest .cover { box-shadow:0 0 0 1px color-mix(in srgb, var(--acc) 25%, transparent); }
 
   /* Latest release */
   .latest { display:grid; gap:24px; }
-  .latest .cover { max-width:420px; width:100%; }
+  .latest .cover { width:100%; }
   .latest .song-title { font-size:30px; }
   .spotify-embed { display:block; margin-top:20px; border-radius:12px; border:0; background:#181818; }
   .platforms { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:16px; }
@@ -412,8 +425,10 @@
         <h2 id="latest-h">أحدث إصدار</h2>
       </div>
       <div class="latest" style="--amb:#2b56a0;--acc:#e73540">
-        <div class="cover cover--lg" style="--img:url('covers/ba2olak-eh.jpg')" role="img" aria-label="غلاف بقولك ايه — Ba2olak Eh">
-          <span class="cover__ph">بقولك ايه</span>
+        <div class="halo">
+          <div class="cover cover--lg" style="--img:url('covers/ba2olak-eh.jpg')" role="img" aria-label="غلاف بقولك ايه — Ba2olak Eh">
+            <span class="cover__ph">بقولك ايه</span>
+          </div>
         </div>
         <div class="latest__body">
           <h3 class="song-title">بقولك ايه <span lang="en" dir="ltr">Ba2olak Eh</span></h3>

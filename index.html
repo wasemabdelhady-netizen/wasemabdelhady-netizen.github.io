@@ -387,6 +387,27 @@
   .video.is-pending .video__play { background:transparent; color:rgba(224,164,88,.5); border:1.5px solid rgba(224,164,88,.35); box-shadow:none; }
   .more { display:inline-block; margin-top:22px; color:var(--gold); text-decoration:none; font-weight:700; }
 
+  /* Lyric pull-quote between sections */
+  .lyric {
+    margin:0 auto; max-width:1100px; text-align:center;
+    padding:96px 20px; border-top:1px solid rgba(245,239,230,.07);
+    background:radial-gradient(55% 60% at 50% 50%, rgba(43,86,160,.16), transparent 70%);
+  }
+  .lyric blockquote { font-family:var(--ar-display); font-weight:700; line-height:1.35; text-wrap:balance; }
+  .lyric p:first-child { font-size:clamp(34px, 9.5vw, 92px); }
+  .lyric p:last-child { font-size:clamp(22px, 5.6vw, 52px); color:var(--muted); margin-top:6px; }
+  .lyric em { font-style:normal; color:var(--gold); }
+  @media (max-width:699px) {
+    .lyric p:first-child { font-size:14vw; line-height:1.2; }
+    .lyric p:first-child span, .lyric em { display:block; }
+    .lyric p:last-child { font-size:7vw; margin-top:12px; }
+  }
+  .lyric figcaption { margin-top:28px; font-size:14px; color:var(--muted); }
+  .lyric figcaption a { color:var(--gold); text-decoration:none; font-weight:700; }
+  .lyric figcaption a::before { content:"— "; color:var(--muted); }
+  .lyric figcaption span { font-family:var(--en); font-weight:700; font-size:11px; letter-spacing:.12em; margin-inline-start:6px; }
+  @media (min-width:900px) { .lyric { padding:150px 40px; } }
+
   /* About */
   .about { display:grid; gap:20px; max-width:760px; }
   .about__ar { font-size:18px; line-height:2; }
@@ -615,6 +636,15 @@
       </div>
       <a class="more" href="https://www.youtube.com/@WaSeMabdelhady" target="_blank" rel="noopener">القناة على يوتيوب ↗ <span lang="en" dir="ltr">YouTube Channel</span></a>
     </section>
+
+    <!-- ===== سطر من الكلام ===== -->
+    <figure class="lyric" aria-label="سطر من أغنية بقولك ايه">
+      <blockquote>
+        <p><span>كنت فين وانا</span> <em>قلبي بيبكي</em></p>
+        <p>من الفراق دلوقتي بتشكي</p>
+      </blockquote>
+      <figcaption><a href="#latest">بقولك ايه</a> <span lang="en" dir="ltr">Ba2olak Eh</span></figcaption>
+    </figure>
 
     <!-- ===== عنّي ===== -->
     <section class="section" id="about" aria-labelledby="about-h">

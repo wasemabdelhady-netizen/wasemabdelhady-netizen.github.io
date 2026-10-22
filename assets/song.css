@@ -29,7 +29,7 @@ body::after {
 .top { padding:18px 0; display:flex; justify-content:space-between; align-items:center; }
 .top a { color:var(--text); text-decoration:none; display:inline-flex; align-items:center; gap:10px; font-weight:700; font-size:14px; }
 .top a span { font-family:var(--en); font-size:11px; letter-spacing:.24em; color:var(--muted); }
-.top img { width:28px; height:28px; border-radius:6px; }
+.top img { width:30px; height:30px; border-radius:50%; }
 
 /* Release header */
 .release { padding:24px 0 8px; text-align:center; }

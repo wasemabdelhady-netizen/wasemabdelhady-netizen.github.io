@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>ابعتلي — وسيم عبد الهادي | Wasem Abdelhady</title>
+<meta name="description" content="ابعت لوسيم عبد الهادي رأيك في أغانيه، أو فكرة أو موضوع لأغنية جاية. ولو انت شاعر أو ملحّن وعايز تتعاون، ابعت شغلك هنا.">
+<link rel="canonical" href="https://wasemabdelhady.com/write/">
+<meta name="theme-color" content="#0a0a0a">
+<link rel="icon" type="image/png" sizes="32x32" href="/icon-32.png">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<meta property="og:title" content="ابعتلي — وسيم عبد الهادي">
+<meta property="og:description" content="رأيك، فكرة لأغنية، أو تعاون كشاعر أو ملحّن">
+<meta property="og:url" content="https://wasemabdelhady.com/write/">
+<meta property="og:image" content="https://wasemabdelhady.com/og.jpg">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&family=Reem+Kufi:wght@500;700&family=Syne:wght@700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/assets/song.css">
+<link rel="stylesheet" href="/assets/write.css">
+</head>
+<body style="--amb:#5a4320;--acc:#e0a458">
+%%SPRITE%%
+  <header class="wrap top">
+    <a href="/"><img src="/icon-192.png" alt="" width="28" height="28">وسيم عبد الهادي <span lang="en" dir="ltr">WASEM</span></a>
+  </header>
+
+  <main class="wrap">
+    <section class="write-head">
+      <p class="eyebrow" dir="ltr">WRITE TO WASEM</p>
+      <h1>ابعتلي</h1>
+      <p class="lead">رأيك في أغنية، فكرة أو موضوع نفسك تسمعه في أغنية، أو لو انت شاعر أو ملحّن وعايز نشتغل سوا. كل رسالة بتوصلني وبقراها.</p>
+    </section>
+
+    <form class="write" id="write-form" novalidate>
+      <fieldset class="types">
+        <legend>عايز تبعت إيه؟</legend>
+        <label><input type="radio" name="type" value="رأي" id="t-opinion" checked><span><b>رأي</b><i>في أغنية أو الموقع</i></span></label>
+        <label><input type="radio" name="type" value="فكرة أغنية" id="t-idea"><span><b>فكرة أغنية</b><i>موضوع أو حكاية</i></span></label>
+        <label><input type="radio" name="type" value="تعاون" id="t-collab"><span><b>تعاون</b><i>شاعر أو ملحّن</i></span></label>
+      </fieldset>
+
+      <div class="field">
+        <label for="f-name">اسمك</label>
+        <input id="f-name" name="name" type="text" autocomplete="name" required>
+      </div>
+
+      <div class="field">
+        <label for="f-contact">إيميل أو رقم واتساب <small>عشان أقدر أرد عليك</small></label>
+        <input id="f-contact" name="contact" type="text" inputmode="email" autocomplete="email" dir="ltr" required>
+      </div>
+
+      <div class="field" data-for="رأي">
+        <label for="f-song">عن أنهي أغنية؟ <small>اختياري</small></label>
+        <select id="f-song" name="song">
+          <option value="">—</option>
+          <option>بقولك ايه</option>
+          <option>مش لعبة</option>
+          <option>انت الحبيب</option>
+          <option>الموقع</option>
+        </select>
+      </div>
+
+      <div class="field" data-for="تعاون">
+        <label for="f-role">انت</label>
+        <select id="f-role" name="role">
+          <option>شاعر</option>
+          <option>ملحّن</option>
+          <option>شاعر وملحّن</option>
+          <option>موزّع / منتج</option>
+          <option>غير كده</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label for="f-message" id="msg-label">رسالتك</label>
+        <textarea id="f-message" name="message" rows="6" required></textarea>
+      </div>
+
+      <div class="field" data-for="تعاون">
+        <label for="f-link">لينك لشغلك <small>Drive · SoundCloud · YouTube — اختياري</small></label>
+        <input id="f-link" name="link" type="url" dir="ltr" placeholder="https://">
+      </div>
+
+      <label class="consent" data-for="تعاون">
+        <input type="checkbox" id="f-consent" name="consent" value="موافق">
+        <span>فاهم إن إرسال الكلام أو اللحن هنا مش بيعني إنه هيتستخدم، وإن الحقوق بتفضل ملكي لحد ما نتفق على أي تعاون كتابةً.</span>
+      </label>
+
+      <!-- spam trap: real people never fill this -->
+      <input type="text" name="_honey" class="honey" tabindex="-1" autocomplete="off" aria-hidden="true">
+
+      <button class="send" type="submit">ابعت</button>
+      <p class="status" role="status" aria-live="polite"></p>
+    </form>
+
+    <a class="home-link" href="/">← wasemabdelhady.com</a>
+  </main>
+
+  <footer class="footer">
+    <p dir="ltr">© 2026 Wasem Abdelhady · وسيم عبد الهادي</p>
+    <p dir="ltr">℗ WA Records</p>
+  </footer>
+
+  <script src="/assets/write.js" defer></script>
+  <!-- Cloudflare Web Analytics (visitor counts, no cookies) --><script defer src='https://static.cloudflareinsights.com/beacon.min.js' data-cf-beacon='{"token": "b26b5bf0eb62472c987c27890a42bb25"}'></script>
+</body>
+</html>

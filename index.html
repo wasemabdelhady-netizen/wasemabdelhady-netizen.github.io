@@ -882,7 +882,10 @@
       var c = navigator.connection;
       if (!v || matchMedia('(prefers-reduced-motion: reduce)').matches || (c && c.saveData)) return;
       v.muted = true; v.playsInline = true;
-      v.src = v.dataset.src;
+      // MP4 (H.264) everywhere it plays; WebM copy for browsers without H.264
+      var src = v.dataset.src;
+      if (!v.canPlayType('video/mp4; codecs="avc1.640028"') && v.canPlayType('video/webm; codecs="vp9"')) src = src.replace(/\.mp4$/, '.webm');
+      v.src = src;
       v.addEventListener('playing', function () { v.classList.add('is-playing'); }, { once: true });
       // iPhone Low Power Mode blocks autoplay; it allows play after the first touch or scroll
       var kick = function () {
@@ -1006,6 +1009,7 @@
     });
   </script>
 
+  <script src="/assets/track.js" defer></script>
   <!-- Cloudflare Web Analytics (visitor counts, no cookies) --><script defer src='https://static.cloudflareinsights.com/beacon.min.js' data-cf-beacon='{"token": "b26b5bf0eb62472c987c27890a42bb25"}'></script>
 </body>
 </html>

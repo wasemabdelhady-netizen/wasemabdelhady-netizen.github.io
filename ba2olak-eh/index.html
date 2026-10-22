@@ -61,7 +61,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&family=Reem+Kufi:wght@500;700&family=Syne:wght@700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/assets/song.css">
 </head>
-<body style="--amb:#2b56a0;--acc:#e73540">
+<body style="--amb:#2b56a0;--acc:#e73540" data-slug="ba2olak-eh" data-ar="بقولك ايه" data-en="Ba2olak Eh">
   <svg width="0" height="0" style="position:absolute" aria-hidden="true">
     <symbol id="i-spotify" viewBox="0 0 24 24"><path fill="currentColor" d="M12 0a12 12 0 1 0 0 24 12 12 0 0 0 0-24zm5.5 17.3a.75.75 0 0 1-1 .25c-2.8-1.7-6.3-2.1-10.5-1.1a.75.75 0 1 1-.33-1.46c4.5-1 8.4-.6 11.5 1.3.36.22.47.69.33 1.02zm1.5-3.3a.94.94 0 0 1-1.3.3c-3.2-2-8-2.5-11.8-1.4a.94.94 0 1 1-.54-1.8c4.3-1.3 9.6-.7 13.3 1.6.44.27.58.86.34 1.3zm.13-3.4C15.4 5.9 9 5.7 5.3 6.8a1.13 1.13 0 1 1-.65-2.16C8.9 3.4 16 3.6 20.3 6.2a1.13 1.13 0 0 1-1.17 1.93z"/></symbol>
     <symbol id="i-apple" viewBox="0 0 24 24"><path fill="currentColor" d="M16.5 3.2c0-.22-.04-.4-.35-.35l-7.9 1.6c-.3.06-.4.2-.4.5v9.06a2.7 2.7 0 0 0-1-.2 2.6 2.6 0 1 0 2.6 2.6V8.05l6.3-1.28v5.06a2.7 2.7 0 0 0-1-.2 2.6 2.6 0 1 0 2.6 2.6V3.2z"/></symbol>
@@ -104,10 +104,11 @@
 
     <section class="block" aria-labelledby="lyrics-h">
       <h2 id="lyrics-h">الكلمات <span lang="en" dir="ltr">LYRICS</span></h2>
+      <p class="share-hint">دوس على أي سطر وشاركه ستوري <span lang="en" dir="ltr">Tap a line to share it</span></p>
       <div class="lyrics">
-        <p>بقولك ايه كفايه كلام مفيش ولا كلمة هتداوي<br>باين في عنيك كلامك كله كدب وعلى الفراق ناوي<br><span class="hook">جرحتك؟</span></p>
-        <p class="chorus">كنت فين وانا قلبي بيبكي<br>من الفراق دلوقتي بتشكي<br>بس قلبي حبيبي خلاص اكتفى<br><span class="hook">هنبعد</span><br>ولو في يوم حنيت مش هرجع<br>للي حبه في قلبي بيوجع<br>الحكايه حبيبي خلاص انتهت</p>
-        <p>انا الغلطان<br>فضلت اكدب الاحساس ده جوايا<br>لحد ما بان<br>متستاهلش تفضل ثانية ويايا<br><span class="hook">جرحتك</span></p>
+        <p><span class="ln" role="button" tabindex="0">بقولك ايه كفايه كلام مفيش ولا كلمة هتداوي</span><br><span class="ln" role="button" tabindex="0">باين في عنيك كلامك كله كدب وعلى الفراق ناوي</span><br><span class="ln hook" role="button" tabindex="0">جرحتك؟</span></p>
+        <p class="chorus"><span class="ln" role="button" tabindex="0">كنت فين وانا قلبي بيبكي</span><br><span class="ln" role="button" tabindex="0">من الفراق دلوقتي بتشكي</span><br><span class="ln" role="button" tabindex="0">بس قلبي حبيبي خلاص اكتفى</span><br><span class="ln hook" role="button" tabindex="0">هنبعد</span><br><span class="ln" role="button" tabindex="0">ولو في يوم حنيت مش هرجع</span><br><span class="ln" role="button" tabindex="0">للي حبه في قلبي بيوجع</span><br><span class="ln" role="button" tabindex="0">الحكايه حبيبي خلاص انتهت</span></p>
+        <p><span class="ln" role="button" tabindex="0">انا الغلطان</span><br><span class="ln" role="button" tabindex="0">فضلت اكدب الاحساس ده جوايا</span><br><span class="ln" role="button" tabindex="0">لحد ما بان</span><br><span class="ln" role="button" tabindex="0">متستاهلش تفضل ثانية ويايا</span><br><span class="ln hook" role="button" tabindex="0">جرحتك</span></p>
       </div>
     </section>
 
@@ -133,11 +134,23 @@
     </section>
   </main>
 
+  <dialog class="share" aria-label="شارك السطر">
+    <div class="share__box">
+      <button class="share__close" type="button" aria-label="اقفل">✕</button>
+      <div class="share__preview"><img alt="صورة الستوري"><span class="share__wait">بنجهّز الصورة…</span></div>
+      <div class="share__actions">
+        <button class="share__send" type="button" hidden>شارك</button>
+        <button class="share__save" type="button">حمّل الصورة</button>
+      </div>
+    </div>
+  </dialog>
+
   <footer class="footer">
     <p dir="ltr">© 2026 Wasem Abdelhady · وسيم عبد الهادي</p>
     <p dir="ltr">℗ WA Records</p>
   </footer>
 
   <script src="/assets/song.js" defer></script>
+  <script src="/assets/share.js" defer></script>
 </body>
 </html>

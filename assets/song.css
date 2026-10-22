@@ -141,3 +141,22 @@ iframe.video { display:block; }
 
 /* Hook words inside the lyrics (the song's recurring question) */
 .lyrics .hook { display:inline-block; margin:6px 0; font-family:var(--ar-display); font-weight:700; font-size:1.45em; line-height:1.4; color:var(--acc); }
+
+/* Share a line as a story */
+.share-hint { text-align:center; font-size:14px; color:var(--gold); margin:-8px 0 22px; }
+.share-hint span { display:block; font-family:var(--en); font-size:10px; letter-spacing:.14em; color:var(--muted); margin-top:2px; }
+.lyrics .ln { cursor:pointer; border-radius:6px; padding:0 4px; transition:background .2s, color .2s; }
+.lyrics .ln:hover, .lyrics .ln:focus-visible { background:color-mix(in srgb, var(--acc) 16%, transparent); outline:none; }
+.share { margin:auto; border:0; padding:0; background:transparent; color:var(--text); max-width:min(420px, 92vw); width:100%; }
+.share::backdrop { background:rgba(5,5,5,.82); -webkit-backdrop-filter:blur(6px); backdrop-filter:blur(6px); }
+.share__box { position:relative; background:#121110; border:1px solid rgba(224,164,88,.3); border-radius:18px; padding:16px; }
+.share__close { position:absolute; top:10px; left:10px; z-index:2; width:34px; height:34px; border-radius:50%; border:0; background:rgba(10,10,10,.8); color:var(--text); cursor:pointer; }
+.share__preview { position:relative; aspect-ratio:9/16; max-height:62vh; margin:0 auto; border-radius:12px; overflow:hidden; background:#0a0a0a; }
+.share__preview img { width:100%; height:100%; object-fit:contain; }
+.share__wait { position:absolute; inset:0; display:none; place-items:center; color:var(--muted); font-size:14px; }
+.share.is-loading .share__wait { display:grid; }
+.share.is-loading img { visibility:hidden; }
+.share__actions { display:flex; gap:10px; margin-top:14px; }
+.share__actions button { flex:1; height:48px; border-radius:999px; font:700 15px var(--ar); cursor:pointer; border:1.5px solid var(--gold); background:none; color:var(--gold); }
+.share__actions .share__send { background:var(--gold); color:var(--bg); }
+.share__actions button[hidden] { display:none; }

@@ -138,3 +138,6 @@ iframe.video { display:block; }
   html { scroll-behavior:auto; }
   .more img, .play { transition:none; }
 }
+
+/* Hook words inside the lyrics (the song's recurring question) */
+.lyrics .hook { display:inline-block; margin:6px 0; font-family:var(--ar-display); font-weight:700; font-size:1.45em; line-height:1.4; color:var(--acc); }

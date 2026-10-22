@@ -279,8 +279,7 @@
   .latest { display:grid; gap:24px; }
   .latest .cover { width:100%; }
   .latest .song-title { font-size:30px; }
-  .spotify-embed { display:block; margin-top:20px; border-radius:12px; border:0; background:#181818; }
-  .platforms { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:16px; }
+  .platforms { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:20px; }
   .pill {
     display:flex; align-items:center; justify-content:center; gap:8px;
     height:46px; border-radius:12px;
@@ -296,7 +295,8 @@
   .song {
     display:grid; grid-template-columns:104px 1fr; gap:6px 16px; align-items:center;
   }
-  .song .cover { grid-row:span 2; border-radius:10px; }
+  .song .cover-wrap { grid-row:span 2; }
+  .song .cover { border-radius:10px; }
   .song .cover__ph { font-size:13px; padding:10px; }
   .song .song-title { align-self:end; }
   .song-links { align-self:start; display:flex; align-items:center; gap:4px; }
@@ -308,6 +308,34 @@
   .song-links a:hover { border-color:var(--gold); background:rgba(224,164,88,.08); }
   .song-links svg { width:16px; height:16px; }
   .song .cover:hover { transform:translateY(-4px); }
+
+  /* Audio previews: gold play button whose ring fills as the clip plays */
+  .cover-wrap { position:relative; }
+  .play {
+    position:absolute; z-index:2; left:8px; bottom:8px;
+    width:40px; height:40px; border:0; border-radius:50%; padding:0; cursor:pointer;
+    display:grid; place-items:center;
+    background:rgba(10,10,10,.72); color:var(--gold);
+    -webkit-backdrop-filter:blur(6px); backdrop-filter:blur(6px);
+    transition:transform .2s ease, background .2s ease;
+  }
+  .play:hover { transform:scale(1.06); }
+  .play > svg { grid-area:1 / 1; }
+  .play__ring { width:100%; height:100%; transform:rotate(-90deg); }
+  .play__ring circle { fill:none; stroke-width:2; stroke:rgba(224,164,88,.5); }
+  .play__ring .play__bar { stroke:var(--gold); stroke-dasharray:138.23; stroke-dashoffset:138.23; stroke-linecap:round; }
+  .play__icon, .play__pause { width:16px; height:16px; }
+  .play__icon { margin-left:2px; }
+  .play__pause { display:none; }
+  .play.is-playing { background:var(--gold); color:var(--bg); }
+  .play.is-playing .play__ring circle { stroke:rgba(10,10,10,.25); }
+  .play.is-playing .play__ring .play__bar { stroke:var(--bg); }
+  .play.is-playing .play__icon { display:none; }
+  .play.is-playing .play__pause { display:block; }
+  .song .play { width:32px; height:32px; left:6px; bottom:6px; }
+  .song .play__icon, .song .play__pause { width:13px; height:13px; }
+  .play--lg { width:64px; height:64px; left:16px; bottom:16px; }
+  .play--lg .play__icon, .play--lg .play__pause { width:24px; height:24px; }
 
   /* Videos */
   .videos { display:grid; gap:16px; }
@@ -376,6 +404,8 @@
     .songs { grid-template-columns:repeat(3, 1fr); gap:28px; }
     .song { display:flex; flex-direction:column; align-items:stretch; gap:0; }
     .song .cover { border-radius:14px; }
+    .song .play { left:12px; bottom:12px; width:48px; height:48px; }
+    .song .play__icon, .song .play__pause { width:16px; height:16px; }
     .song .cover__ph { font-size:20px; padding:16px; }
     .song .song-title { margin-top:14px; align-self:stretch; }
     .song-links { margin-top:10px; align-self:stretch; }
@@ -440,15 +470,12 @@
         <div class="halo">
           <div class="cover cover--lg" style="--img:url('covers/ba2olak-eh.jpg')" role="img" aria-label="غلاف بقولك ايه — Ba2olak Eh">
             <span class="cover__ph">بقولك ايه</span>
-          </div>
+            <button class="play play--lg" type="button" data-audio="audio/ba2olak-eh.mp3" aria-label="اسمع مقطع من بقولك ايه"><svg class="play__ring" viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="24" r="22"/><circle class="play__bar" cx="24" cy="24" r="22"/></svg><svg class="play__icon" aria-hidden="true"><use href="#i-play"/></svg><svg class="play__pause" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M7 5h3.5v14H7zM13.5 5H17v14h-3.5z"/></svg></button>
+        </div>
         </div>
         <div class="latest__body">
           <h3 class="song-title">بقولك ايه <span lang="en" dir="ltr">Ba2olak Eh</span></h3>
           <p class="song-meta"><span dir="ltr">Single · 2026</span></p>
-          <iframe class="spotify-embed" title="بقولك ايه على Spotify"
-            src="https://open.spotify.com/embed/album/1ZUtBNTMqPlJMOqx9mjsww?utm_source=generator&theme=0"
-            width="100%" height="152" frameborder="0" loading="lazy"
-            allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"></iframe>
           <div class="platforms">
             <a class="pill" href="https://open.spotify.com/album/1ZUtBNTMqPlJMOqx9mjsww" target="_blank" rel="noopener"><svg><use href="#i-spotify"/></svg>Spotify</a>
             <a class="pill" href="https://music.apple.com/eg/album/%D8%A8%D9%82%D9%88%D9%84%D9%83-%D8%A7%D9%8A%D9%87-ba2olak-eh-single/6820402630" target="_blank" rel="noopener"><svg><use href="#i-apple"/></svg>Apple Music</a>
@@ -467,7 +494,10 @@
       </div>
       <div class="songs">
         <article class="song" style="--amb:#2b56a0;--acc:#e73540">
-          <a class="cover" href="https://open.spotify.com/album/1ZUtBNTMqPlJMOqx9mjsww" target="_blank" rel="noopener" style="--img:url('covers/ba2olak-eh.jpg')" aria-label="بقولك ايه على Spotify"><span class="cover__ph">بقولك ايه</span></a>
+          <div class="cover-wrap">
+            <a class="cover" href="https://open.spotify.com/album/1ZUtBNTMqPlJMOqx9mjsww" target="_blank" rel="noopener" style="--img:url('covers/ba2olak-eh.jpg')" aria-label="بقولك ايه على Spotify"><span class="cover__ph">بقولك ايه</span></a>
+            <button class="play" type="button" data-audio="audio/ba2olak-eh.mp3" aria-label="اسمع مقطع من بقولك ايه"><svg class="play__ring" viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="24" r="22"/><circle class="play__bar" cx="24" cy="24" r="22"/></svg><svg class="play__icon" aria-hidden="true"><use href="#i-play"/></svg><svg class="play__pause" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M7 5h3.5v14H7zM13.5 5H17v14h-3.5z"/></svg></button>
+          </div>
           <h3 class="song-title">بقولك ايه <span lang="en" dir="ltr">Ba2olak Eh</span></h3>
           <div class="song-links">
             <span class="song-year" dir="ltr">2026</span>
@@ -478,7 +508,10 @@
           </div>
         </article>
         <article class="song" style="--amb:#04899a;--acc:#e78e22">
-          <a class="cover" href="https://open.spotify.com/track/0DWMpXgS6Q3hBbeqWvTqvG" target="_blank" rel="noopener" style="--img:url('covers/mesh-le3ba.jpg')" aria-label="مش لعبة على Spotify"><span class="cover__ph">مش لعبة</span></a>
+          <div class="cover-wrap">
+            <a class="cover" href="https://open.spotify.com/track/0DWMpXgS6Q3hBbeqWvTqvG" target="_blank" rel="noopener" style="--img:url('covers/mesh-le3ba.jpg')" aria-label="مش لعبة على Spotify"><span class="cover__ph">مش لعبة</span></a>
+            <button class="play" type="button" data-audio="audio/mesh-le3ba.mp3" aria-label="اسمع مقطع من مش لعبة"><svg class="play__ring" viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="24" r="22"/><circle class="play__bar" cx="24" cy="24" r="22"/></svg><svg class="play__icon" aria-hidden="true"><use href="#i-play"/></svg><svg class="play__pause" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M7 5h3.5v14H7zM13.5 5H17v14h-3.5z"/></svg></button>
+          </div>
           <h3 class="song-title">مش لعبة <span lang="en" dir="ltr">Mesh Le3ba</span></h3>
           <div class="song-links">
             <span class="song-year" dir="ltr">2026</span>
@@ -489,7 +522,10 @@
           </div>
         </article>
         <article class="song" style="--amb:#7d848c;--acc:#e6e6e6">
-          <a class="cover" href="https://open.spotify.com/track/61N58LukOCpYvQfLchpFJu" target="_blank" rel="noopener" style="--img:url('covers/enta-el-habib.jpg')" aria-label="انت الحبيب على Spotify"><span class="cover__ph">انت الحبيب</span></a>
+          <div class="cover-wrap">
+            <a class="cover" href="https://open.spotify.com/track/61N58LukOCpYvQfLchpFJu" target="_blank" rel="noopener" style="--img:url('covers/enta-el-habib.jpg')" aria-label="انت الحبيب على Spotify"><span class="cover__ph">انت الحبيب</span></a>
+            <button class="play" type="button" data-audio="audio/enta-el-habib.mp3" aria-label="اسمع مقطع من انت الحبيب"><svg class="play__ring" viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="24" r="22"/><circle class="play__bar" cx="24" cy="24" r="22"/></svg><svg class="play__icon" aria-hidden="true"><use href="#i-play"/></svg><svg class="play__pause" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M7 5h3.5v14H7zM13.5 5H17v14h-3.5z"/></svg></button>
+          </div>
           <h3 class="song-title">انت الحبيب <span lang="en" dir="ltr">Enta El Habib</span></h3>
           <div class="song-links">
             <span class="song-year" dir="ltr">2024</span>
@@ -591,6 +627,33 @@
       v.src = v.dataset.src;
       v.addEventListener('playing', function () { v.classList.add('is-playing'); }, { once: true });
       v.play().catch(function () {});
+    })();
+
+    // Audio previews: one shared player; the ring on the active button tracks progress
+    (function () {
+      var audio = new Audio(), current = null, raf = 0, C = 138.23;
+      audio.preload = 'none';
+      function bar(b) { return b.querySelector('.play__bar'); }
+      function reset(b) { b.classList.remove('is-playing'); bar(b).style.strokeDashoffset = C; }
+      function tick() {
+        if (current && audio.duration) bar(current).style.strokeDashoffset = C * (1 - audio.currentTime / audio.duration);
+        raf = requestAnimationFrame(tick);
+      }
+      audio.addEventListener('ended', function () { cancelAnimationFrame(raf); if (current) reset(current); current = null; });
+      document.querySelectorAll('.play').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          if (current === btn) {
+            if (audio.paused) { audio.play(); btn.classList.add('is-playing'); raf = requestAnimationFrame(tick); }
+            else { audio.pause(); btn.classList.remove('is-playing'); cancelAnimationFrame(raf); }
+            return;
+          }
+          if (current) reset(current);
+          current = btn;
+          audio.src = btn.dataset.audio;
+          audio.play().then(function () { btn.classList.add('is-playing'); cancelAnimationFrame(raf); raf = requestAnimationFrame(tick); })
+                      .catch(function () { reset(btn); current = null; });
+        });
+      });
     })();
 
     // Click-to-load YouTube: no iframe until the visitor presses play (keeps the page light)

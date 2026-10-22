@@ -303,9 +303,18 @@
   .section--contact { text-align:center; }
   .section--contact .eyebrow { text-align:center; }
   .contact__lead { color:var(--muted); font-size:16px; }
-  .contact { display:flex; gap:12px; justify-content:center; flex-wrap:wrap; margin-top:24px; }
-  .contact .btn { gap:10px; }
-  .contact .btn svg { width:20px; height:20px; }
+  .contact { display:grid; gap:12px; max-width:520px; margin:24px auto 0; }
+  .contact__item {
+    display:grid; grid-template-columns:auto 1fr; gap:2px 14px; align-items:center;
+    padding:16px 20px; border-radius:14px; text-align:right;
+    background:rgba(245,239,230,.04); border:1px solid rgba(245,239,230,.1);
+    color:var(--text); text-decoration:none; transition:border-color .2s, background .2s;
+  }
+  .contact__item:hover { border-color:var(--gold); background:rgba(224,164,88,.08); }
+  .contact__item svg { grid-row:span 2; width:24px; height:24px; color:var(--gold); }
+  .contact__label { font-size:13px; color:var(--muted); }
+  .contact__label span { font-family:var(--en); font-weight:700; font-size:11px; letter-spacing:.08em; margin-inline-start:6px; }
+  .contact__value { font-family:var(--en); font-weight:700; font-size:16px; text-align:right; overflow-wrap:anywhere; }
 
   .footer { padding:32px 20px calc(32px + env(safe-area-inset-bottom)); text-align:center; font-size:12px; color:rgba(245,239,230,.35); border-top:1px solid rgba(245,239,230,.07); }
 
@@ -498,9 +507,17 @@
       <p class="contact__lead">للحفلات والتعاون والحجز<br><span lang="en" dir="ltr">Bookings, shows &amp; collaborations</span></p>
       <div class="contact">
         <!-- TODO: الإيميل — غيّر EMAIL_HERE -->
-        <a class="btn btn--solid" href="mailto:EMAIL_HERE"><svg><use href="#i-mail"/></svg>Email</a>
-        <!-- TODO: واتساب — غيّر WHATSAPP_NUMBER بالرقم بصيغة دولية من غير + (مثال 2010xxxxxxxx) -->
-        <a class="btn btn--line" href="https://wa.me/WHATSAPP_NUMBER" target="_blank" rel="noopener"><svg><use href="#i-whatsapp"/></svg>WhatsApp</a>
+        <a class="contact__item" href="mailto:EMAIL_HERE">
+          <svg><use href="#i-mail"/></svg>
+          <span class="contact__label">الحجز والتعاون <span lang="en" dir="ltr">Booking</span></span>
+          <span class="contact__value" dir="ltr">EMAIL_HERE</span>
+        </a>
+        <!-- TODO: واتساب إدارة الأعمال — غيّر WHATSAPP_NUMBER بالرقم بصيغة دولية من غير + (مثال 2010xxxxxxxx) -->
+        <a class="contact__item" href="https://wa.me/WHATSAPP_NUMBER" target="_blank" rel="noopener">
+          <svg><use href="#i-whatsapp"/></svg>
+          <span class="contact__label">إدارة الأعمال · واتساب <span lang="en" dir="ltr">Management</span></span>
+          <span class="contact__value" dir="ltr">WHATSAPP_DISPLAY</span>
+        </a>
       </div>
     </section>
 

@@ -15,7 +15,11 @@
 <meta property="og:title" content="وسيم عبد الهادي | Wasem Abdelhady">
 <meta property="og:description" content="Singer · Composer — مطرب وملحّن">
 <meta property="og:url" content="https://wasemabdelhady.com/">
-<meta property="og:image" content="https://wasemabdelhady.com/hero.jpg">
+<meta property="og:image" content="https://wasemabdelhady.com/og.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Wasem Abdelhady — وسيم عبد الهادي">
+<meta name="twitter:card" content="summary_large_image">
 <script type="application/ld+json">
 {
   "@context": "https://schema.org",
@@ -107,11 +111,13 @@
   .hero__media {
     position:absolute; inset:0; z-index:-1;
   }
-  .hero__media img {
+  .hero__media img, .hero__video {
     width:100%; height:100%;
     object-fit:cover;
     object-position:50% 15%;
   }
+  .hero__video { position:absolute; inset:0; opacity:0; transition:opacity .6s ease; }
+  .hero__video.is-playing { opacity:1; }
   .hero__media::after {
     content:""; position:absolute; inset:0;
     background:linear-gradient(to top,
@@ -392,7 +398,9 @@
 
   <header class="hero">
     <div class="hero__media">
-      <img src="hero.jpg" alt="وسيم عبد الهادي — Wasem Abdelhady" width="928" height="1152" fetchpriority="high">
+      <img src="hero.jpg" alt="وسيم عبد الهادي — Wasem Abdelhady" width="1080" height="1336" fetchpriority="high">
+      <!-- Loop is attached by script so phones on data saver / reduced motion keep the still -->
+      <video class="hero__video" muted loop playsinline preload="none" poster="hero.jpg" aria-hidden="true" data-src="hero.mp4"></video>
     </div>
     <div class="hero__content">
       <h1 class="hero__name"><span>Wasem</span><span>Abdelhady</span></h1>
@@ -574,6 +582,16 @@
   </footer>
 
   <script>
+    // Hero loop: skip on reduced motion or data saver; fade in only once it is actually playing
+    (function () {
+      var v = document.querySelector('.hero__video');
+      var c = navigator.connection;
+      if (!v || matchMedia('(prefers-reduced-motion: reduce)').matches || (c && c.saveData)) return;
+      v.src = v.dataset.src;
+      v.addEventListener('playing', function () { v.classList.add('is-playing'); }, { once: true });
+      v.play().catch(function () {});
+    })();
+
     // Click-to-load YouTube: no iframe until the visitor presses play (keeps the page light)
     document.querySelectorAll('.video').forEach(function (btn) {
       var id = btn.dataset.yt;

@@ -18,6 +18,8 @@ Black `#0a0a0a` + gold `#e0a458` + text `#f5efe6`; fonts Syne (EN), Reem Kufi (A
 | `press/index.html` | Press kit — **generated** by `tools/mkpress.py` from `tools/press.tpl.html` |
 | `write/index.html` | Contact form — from `tools/write.tpl.html` (Web3Forms, key in `assets/write.js`) |
 | `new/index.html` | Redirect to the latest release (used as the bio link) |
+| `card/index.html` + `card/qr.png` | Wasem's personal QR card (saved to his home screen); code opens `/me` |
+| `me/index.html` | Target of the personal QR: counted in analytics, then forwards to `/` (never change the URL `/me`) |
 | `qr/index.html` | Target of the printed QR code: counted in analytics, then forwards to `/new/` (never change the URL `/qr`) |
 | `covers/` | `<slug>.jpg` (900px), `<slug>.webp`, `<slug>-400.webp` |
 | `audio/` | `<slug>.mp3` — 20s preview, 128k, 0.4s fade in / 0.6s fade out |

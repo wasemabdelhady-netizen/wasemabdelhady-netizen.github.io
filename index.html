@@ -373,6 +373,29 @@
   .credits dt { color:var(--muted); }
   .credits dd { font-weight:700; color:var(--text); white-space:nowrap; }
 
+  /* Mini player */
+  .mini {
+    position:fixed; z-index:50; left:12px; right:12px; bottom:calc(12px + env(safe-area-inset-bottom, 0px));
+    max-width:460px; margin:0 auto; display:flex; align-items:center; gap:10px; padding:8px 10px 8px 8px;
+    border-radius:16px; background:rgba(20,18,15,.92); border:1px solid rgba(224,164,88,.3);
+    -webkit-backdrop-filter:blur(12px); backdrop-filter:blur(12px); box-shadow:0 18px 50px rgba(0,0,0,.6);
+    overflow:hidden; animation:mini-in .35s ease both;
+  }
+  .mini[hidden] { display:none; }
+  @keyframes mini-in { from { transform:translateY(20px); opacity:0; } to { transform:none; opacity:1; } }
+  .mini__song { flex:1; min-width:0; display:flex; align-items:center; gap:10px; color:var(--text); text-decoration:none; }
+  .mini__song img { width:44px; height:44px; border-radius:8px; object-fit:cover; flex:none; }
+  .mini__song span { min-width:0; }
+  .mini__song b { display:block; font-family:var(--ar-display); font-size:16px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .mini__song i { display:block; text-align:right; font-style:normal; font-family:var(--en); font-size:10px; letter-spacing:.08em; color:var(--muted); }
+  .mini__toggle { width:42px; height:42px; border:0; border-radius:50%; background:var(--gold); color:var(--bg); display:grid; place-items:center; cursor:pointer; flex:none; }
+  .mini__toggle svg { width:18px; height:18px; grid-area:1 / 1; }
+  .mini__play { margin-left:2px; }
+  .mini.is-playing .mini__play, .mini:not(.is-playing) .mini__pause { display:none; }
+  .mini__close { width:32px; height:32px; border:0; background:none; color:var(--muted); font-size:15px; cursor:pointer; flex:none; }
+  .mini__progress { position:absolute; left:0; bottom:0; height:2px; width:100%; background:var(--mini-acc, var(--gold)); transform-origin:right; transform:scaleX(0); }
+  @media (prefers-reduced-motion:reduce) { .mini { animation:none; } }
+
   /* Videos */
   .videos { display:grid; gap:16px; }
   .video {
@@ -454,6 +477,7 @@
     background:linear-gradient(135deg, rgba(224,164,88,.16), rgba(224,164,88,.04)); border:1px solid rgba(224,164,88,.4);
     color:var(--text); text-decoration:none;
   }
+  .channel[hidden] { display:none; }
   .channel svg { width:28px; height:28px; color:var(--gold); flex:none; }
   .channel span { flex:1; }
   .channel b { display:block; font-size:16px; }
@@ -589,7 +613,7 @@
         <div class="halo">
           <div class="cover cover--lg" style="--img:url('covers/ba2olak-eh.webp')" role="img" aria-label="غلاف بقولك ايه — Ba2olak Eh">
             <span class="cover__ph">بقولك ايه</span>
-            <button class="play play--lg" type="button" data-audio="audio/ba2olak-eh.mp3" aria-label="اسمع مقطع من بقولك ايه"><svg class="play__ring" viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="24" r="22"/><circle class="play__bar" cx="24" cy="24" r="22"/></svg><svg class="play__icon" aria-hidden="true"><use href="#i-play"/></svg><svg class="play__pause" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M7 5h3.5v14H7zM13.5 5H17v14h-3.5z"/></svg></button>
+            <button class="play play--lg" type="button" data-title="بقولك ايه" data-en="Ba2olak Eh" data-cover="covers/ba2olak-eh-400.webp" data-page="/ba2olak-eh/" data-acc="#e73540" data-audio="audio/ba2olak-eh.mp3" aria-label="اسمع مقطع من بقولك ايه"><svg class="play__ring" viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="24" r="22"/><circle class="play__bar" cx="24" cy="24" r="22"/></svg><svg class="play__icon" aria-hidden="true"><use href="#i-play"/></svg><svg class="play__pause" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M7 5h3.5v14H7zM13.5 5H17v14h-3.5z"/></svg></button>
         </div>
         </div>
         <div class="latest__body">
@@ -615,7 +639,7 @@
         <article class="song" style="--amb:#2b56a0;--acc:#e73540">
           <div class="cover-wrap">
             <a class="cover" href="https://open.spotify.com/album/1ZUtBNTMqPlJMOqx9mjsww" target="_blank" rel="noopener" style="--img:url('covers/ba2olak-eh.webp');--img-sm:url('covers/ba2olak-eh-400.webp')" aria-label="بقولك ايه على Spotify"><span class="cover__ph">بقولك ايه</span></a>
-            <button class="play" type="button" data-audio="audio/ba2olak-eh.mp3" aria-label="اسمع مقطع من بقولك ايه"><svg class="play__ring" viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="24" r="22"/><circle class="play__bar" cx="24" cy="24" r="22"/></svg><svg class="play__icon" aria-hidden="true"><use href="#i-play"/></svg><svg class="play__pause" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M7 5h3.5v14H7zM13.5 5H17v14h-3.5z"/></svg></button>
+            <button class="play" type="button" data-title="بقولك ايه" data-en="Ba2olak Eh" data-cover="covers/ba2olak-eh-400.webp" data-page="/ba2olak-eh/" data-acc="#e73540" data-audio="audio/ba2olak-eh.mp3" aria-label="اسمع مقطع من بقولك ايه"><svg class="play__ring" viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="24" r="22"/><circle class="play__bar" cx="24" cy="24" r="22"/></svg><svg class="play__icon" aria-hidden="true"><use href="#i-play"/></svg><svg class="play__pause" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M7 5h3.5v14H7zM13.5 5H17v14h-3.5z"/></svg></button>
           </div>
           <h3 class="song-title"><a href="/ba2olak-eh/">بقولك ايه</a> <span lang="en" dir="ltr">Ba2olak Eh</span></h3>
           <a class="song-page" href="/ba2olak-eh/">الكلمات والتفاصيل ←</a>
@@ -639,7 +663,7 @@
         <article class="song" style="--amb:#04899a;--acc:#e78e22">
           <div class="cover-wrap">
             <a class="cover" href="https://open.spotify.com/track/0DWMpXgS6Q3hBbeqWvTqvG" target="_blank" rel="noopener" style="--img:url('covers/mesh-le3ba.webp');--img-sm:url('covers/mesh-le3ba-400.webp')" aria-label="مش لعبة على Spotify"><span class="cover__ph">مش لعبة</span></a>
-            <button class="play" type="button" data-audio="audio/mesh-le3ba.mp3" aria-label="اسمع مقطع من مش لعبة"><svg class="play__ring" viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="24" r="22"/><circle class="play__bar" cx="24" cy="24" r="22"/></svg><svg class="play__icon" aria-hidden="true"><use href="#i-play"/></svg><svg class="play__pause" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M7 5h3.5v14H7zM13.5 5H17v14h-3.5z"/></svg></button>
+            <button class="play" type="button" data-title="مش لعبة" data-en="Mesh Le3ba" data-cover="covers/mesh-le3ba-400.webp" data-page="/mesh-le3ba/" data-acc="#e78e22" data-audio="audio/mesh-le3ba.mp3" aria-label="اسمع مقطع من مش لعبة"><svg class="play__ring" viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="24" r="22"/><circle class="play__bar" cx="24" cy="24" r="22"/></svg><svg class="play__icon" aria-hidden="true"><use href="#i-play"/></svg><svg class="play__pause" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M7 5h3.5v14H7zM13.5 5H17v14h-3.5z"/></svg></button>
           </div>
           <h3 class="song-title"><a href="/mesh-le3ba/">مش لعبة</a> <span lang="en" dir="ltr">Mesh Le3ba</span></h3>
           <a class="song-page" href="/mesh-le3ba/">الكلمات والتفاصيل ←</a>
@@ -663,7 +687,7 @@
         <article class="song" style="--amb:#7d848c;--acc:#e6e6e6">
           <div class="cover-wrap">
             <a class="cover" href="https://open.spotify.com/track/61N58LukOCpYvQfLchpFJu" target="_blank" rel="noopener" style="--img:url('covers/enta-el-habib.webp');--img-sm:url('covers/enta-el-habib-400.webp')" aria-label="انت الحبيب على Spotify"><span class="cover__ph">انت الحبيب</span></a>
-            <button class="play" type="button" data-audio="audio/enta-el-habib.mp3" aria-label="اسمع مقطع من انت الحبيب"><svg class="play__ring" viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="24" r="22"/><circle class="play__bar" cx="24" cy="24" r="22"/></svg><svg class="play__icon" aria-hidden="true"><use href="#i-play"/></svg><svg class="play__pause" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M7 5h3.5v14H7zM13.5 5H17v14h-3.5z"/></svg></button>
+            <button class="play" type="button" data-title="انت الحبيب" data-en="Enta El Habib" data-cover="covers/enta-el-habib-400.webp" data-page="/enta-el-habib/" data-acc="#e6e6e6" data-audio="audio/enta-el-habib.mp3" aria-label="اسمع مقطع من انت الحبيب"><svg class="play__ring" viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="24" r="22"/><circle class="play__bar" cx="24" cy="24" r="22"/></svg><svg class="play__icon" aria-hidden="true"><use href="#i-play"/></svg><svg class="play__pause" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M7 5h3.5v14H7zM13.5 5H17v14h-3.5z"/></svg></button>
           </div>
           <h3 class="song-title"><a href="/enta-el-habib/">انت الحبيب</a> <span lang="en" dir="ltr">Enta El Habib</span></h3>
           <a class="song-page" href="/enta-el-habib/">الكلمات والتفاصيل ←</a>
@@ -779,6 +803,14 @@
 
   </main>
 
+  <!-- Mini player: appears while a preview is loaded so it can be paused from anywhere on the page -->
+  <div class="mini" hidden>
+    <a class="mini__song" href="#"><img alt="" width="44" height="44"><span><b></b><i lang="en" dir="ltr"></i></span></a>
+    <button class="mini__toggle" type="button" aria-label="إيقاف مؤقت"><svg class="mini__play" aria-hidden="true"><use href="#i-play"/></svg><svg class="mini__pause" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M7 5h3.5v14H7zM13.5 5H17v14h-3.5z"/></svg></button>
+    <button class="mini__close" type="button" aria-label="اقفل المشغّل">✕</button>
+    <span class="mini__progress" aria-hidden="true"></span>
+  </div>
+
   <footer class="footer">
     <svg class="sig" viewBox="-44 -656 6589 1101" role="img" aria-label="Wasem Abdelhady">
         <path pathLength="1" style="--i:0" d="M430 21Q396 21 375.5 8Q355 -5 355 -30Q355 -78 414 -165Q424 -179 448 -211Q472 -243 510 -293Q625 -446 625 -529Q625 -564 612.5 -581.5Q600 -599 554 -599Q502 -599 429.5 -571Q357 -543 277 -494Q207 -451 162.5 -415.5Q118 -380 80 -336Q57 -308 37.5 -283.5Q18 -259 18 -240Q18 -208 63 -208Q71 -208 81.5 -210Q92 -212 106 -216Q120 -220 129.5 -222Q139 -224 143 -224Q157 -224 157 -218Q157 -204 113 -192Q94 -187 79.5 -184.5Q65 -182 55 -182Q-14 -182 -14 -240Q-14 -318 91 -412Q138 -455 191.5 -492.5Q245 -530 313 -562Q381 -594 447.5 -610Q514 -626 562 -626Q633 -626 669.5 -603.5Q706 -581 706 -532Q706 -487 673 -431Q653 -396 631 -361.5Q609 -327 577 -285Q552 -252 523.5 -214.5Q495 -177 469 -141Q423 -79 423 -39Q423 -6 458 -6Q481 -6 504 -15Q527 -24 565 -45Q660 -97 754 -174.5Q848 -252 961 -363Q965 -367 976 -378Q987 -389 999 -399Q1007 -404 1017.5 -405Q1028 -406 1038 -406Q1045 -406 1048.5 -401.5Q1052 -397 1052 -392Q1052 -389 1050 -381Q1048 -373 1043 -367Q1005 -312 981.5 -267.5Q958 -223 946 -182.5Q934 -142 930 -97Q927 -60 940.5 -41.5Q954 -23 979 -23Q999 -23 1023.5 -37Q1048 -51 1082 -80Q1140 -131 1168 -170Q1210 -231 1224.5 -279.5Q1239 -328 1239 -359Q1239 -371 1231 -390Q1221 -413 1221 -424Q1221 -441 1232 -450Q1243 -459 1257 -459Q1265 -459 1273 -449.5Q1281 -440 1286 -429Q1291 -418 1293 -409Q1295 -400 1295 -392Q1295 -387 1295 -381.5Q1295 -376 1294 -369Q1300 -358 1316 -354Q1333 -350 1333 -343Q1333 -335 1319 -335Q1304 -335 1286 -341Q1273 -294 1251 -249Q1229 -204 1197 -159Q1159 -107 1118 -71.5Q1077 -36 1036 -15Q1018 -6 997.5 1.5Q977 9 959 9Q916 9 891 -11Q866 -31 866 -74Q866 -103 877 -149.5Q888 -196 915 -266Q830 -197 783.5 -162Q737 -127 714 -110Q559 2 471 17Q461 18 451 19.5Q441 21 430 21Z"/>
@@ -880,29 +912,61 @@
       pick();
     }
 
-    // Audio previews: one shared player; the ring on the active button tracks progress
+    // Audio previews: one shared player; the ring on the active button and the mini player track progress
     (function () {
       var audio = new Audio(), current = null, raf = 0, C = 138.23;
+      var mini = document.querySelector('.mini'), miniProg = mini.querySelector('.mini__progress');
       audio.preload = 'none';
       function bar(b) { return b.querySelector('.play__bar'); }
       function reset(b) { b.classList.remove('is-playing'); bar(b).style.strokeDashoffset = C; }
+      function setPlaying(on) {
+        if (current) current.classList.toggle('is-playing', on);
+        mini.classList.toggle('is-playing', on);
+        mini.querySelector('.mini__toggle').setAttribute('aria-label', on ? 'إيقاف مؤقت' : 'تشغيل');
+        cancelAnimationFrame(raf);
+        if (on) raf = requestAnimationFrame(tick);
+      }
       function tick() {
-        if (current && audio.duration) bar(current).style.strokeDashoffset = C * (1 - audio.currentTime / audio.duration);
+        if (current && audio.duration) {
+          var f = audio.currentTime / audio.duration;
+          bar(current).style.strokeDashoffset = C * (1 - f);
+          miniProg.style.transform = 'scaleX(' + f + ')';
+        }
         raf = requestAnimationFrame(tick);
       }
-      audio.addEventListener('ended', function () { cancelAnimationFrame(raf); if (current) reset(current); current = null; });
+      function showMini(btn) {
+        var d = btn.dataset;
+        mini.querySelector('img').src = d.cover;
+        mini.querySelector('b').textContent = d.title;
+        mini.querySelector('i').textContent = d.en;
+        mini.querySelector('.mini__song').href = d.page;
+        mini.style.setProperty('--mini-acc', d.acc);
+        miniProg.style.transform = 'scaleX(0)';
+        mini.hidden = false;
+      }
+      function stop() {
+        audio.pause(); cancelAnimationFrame(raf);
+        if (current) reset(current);
+        current = null; mini.hidden = true;
+      }
+      audio.addEventListener('ended', stop);
+      mini.querySelector('.mini__close').addEventListener('click', stop);
+      mini.querySelector('.mini__toggle').addEventListener('click', function () {
+        if (!current) return;
+        if (audio.paused) audio.play().then(function () { setPlaying(true); }); else { audio.pause(); setPlaying(false); }
+      });
       document.querySelectorAll('.play').forEach(function (btn) {
         btn.addEventListener('click', function () {
           if (current === btn) {
-            if (audio.paused) { audio.play(); btn.classList.add('is-playing'); raf = requestAnimationFrame(tick); }
-            else { audio.pause(); btn.classList.remove('is-playing'); cancelAnimationFrame(raf); }
+            if (audio.paused) audio.play().then(function () { setPlaying(true); });
+            else { audio.pause(); setPlaying(false); }
             return;
           }
           if (current) reset(current);
           current = btn;
           audio.src = btn.dataset.audio;
-          audio.play().then(function () { btn.classList.add('is-playing'); cancelAnimationFrame(raf); raf = requestAnimationFrame(tick); })
-                      .catch(function () { reset(btn); current = null; });
+          showMini(btn);
+          audio.play().then(function () { setPlaying(true); }).catch(stop);
         });
       });
     })();

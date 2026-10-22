@@ -98,8 +98,8 @@ def page(s):
 <meta name="description" content="{e(s['desc'])}">
 <link rel="canonical" href="{url}">
 <meta name="theme-color" content="#0a0a0a">
-<link rel="icon" type="image/png" sizes="32x32" href="/icon-32.png">
-<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="32x32" href="/icon-32.png?v=2">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png?v=2">
 <meta property="og:type" content="music.song">
 <meta property="og:title" content="{e(s['ar'])} — وسيم عبد الهادي">
 <meta property="og:description" content="اسمعها على Spotify · Apple Music · Anghami · YouTube">

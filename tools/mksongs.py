@@ -187,6 +187,7 @@ def page(s):
 
   <script src="/assets/song.js" defer></script>
   <script src="/assets/share.js" defer></script>
+  <script src="/assets/track.js" defer></script>
   <!-- Cloudflare Web Analytics (visitor counts, no cookies) --><script defer src='https://static.cloudflareinsights.com/beacon.min.js' data-cf-beacon='{{"token": "b26b5bf0eb62472c987c27890a42bb25"}}'></script>
 </body>
 </html>

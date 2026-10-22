@@ -27,6 +27,8 @@ Black `#0a0a0a` + gold `#e0a458` + text `#f5efe6`; fonts Syne (EN), Reem Kufi (A
 | `tools/` | Generators (excluded from the site by `_config.yml`) |
 
 Every page ends with the Cloudflare Web Analytics beacon (token `b26b5bf0eb62472c987c27890a42bb25`). Keep it on new pages; `new/` has none on purpose.
+Right before that beacon every page also loads `<script src="/assets/track.js" defer></script>` — Meta Pixel `1107327032293189` + TikTok Pixel `DBD9N2BC77U4PGELA870`, injected after page load. It sends PageView, and on clicks: streaming link → Meta `ViewContent` / TikTok `ClickButton` (content_name "Song - Platform"); email/WhatsApp → `Contact`; social or artist-profile link → Meta `Lead` / TikTok `ClickButton` "Follow". When adding a song, add its platform IDs to `SONGS` in `track.js`. `new/` and `card/` have no tracking on purpose.
+Hero loop: `hero.mp4` (H.264) with `hero.webm` (VP9) fallback — regenerate both when the hero video changes.
 
 ## Adding a new release (checklist)
 Wasem sends: title AR/EN, release date, Spotify / Apple Music / Anghami links, YouTube video, 20s MP3 (or full track + timestamp), cover (square), credits, lyrics (or "in Notion" — page under «🎵 الأغاني»).

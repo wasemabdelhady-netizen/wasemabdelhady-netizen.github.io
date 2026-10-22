@@ -446,6 +446,19 @@
   .socials a:hover { border-color:var(--gold); background:rgba(224,164,88,.08); }
 
   /* Contact */
+  .press-link { display:inline-block; margin-top:22px; color:var(--gold); font-weight:700; text-decoration:none; font-size:14px; }
+  .press-link:hover { text-decoration:underline; }
+  .channel {
+    display:flex; align-items:center; gap:14px; margin-bottom:16px; padding:16px 18px; border-radius:14px;
+    background:linear-gradient(135deg, rgba(224,164,88,.16), rgba(224,164,88,.04)); border:1px solid rgba(224,164,88,.4);
+    color:var(--text); text-decoration:none;
+  }
+  .channel svg { width:28px; height:28px; color:var(--gold); flex:none; }
+  .channel span { flex:1; }
+  .channel b { display:block; font-size:16px; }
+  .channel i { font-style:normal; font-family:var(--en); font-size:11px; letter-spacing:.06em; color:var(--muted); }
+  .channel em { font-style:normal; color:var(--gold); font-weight:700; font-size:14px; }
+
   .section--contact { text-align:center; }
   .section--contact .eyebrow { text-align:center; }
   .contact__lead { color:var(--muted); font-size:16px; }
@@ -723,6 +736,12 @@
         <p class="eyebrow">FOLLOW</p>
         <h2 id="follow-h">تابعني</h2>
       </div>
+      <!-- WhatsApp channel: put the channel link in href to show this card (stays hidden while href is empty) -->
+      <a class="channel" href="" target="_blank" rel="noopener" hidden>
+        <svg aria-hidden="true"><use href="#i-whatsapp"/></svg>
+        <span><b>اعرف بالجديد أول بأول</b><i lang="en" dir="ltr">Join the WhatsApp channel</i></span>
+        <em>انضم ←</em>
+      </a>
       <ul class="socials">
         <li><a href="https://www.instagram.com/wasem_abdelhady/" target="_blank" rel="noopener" aria-label="Instagram"><svg><use href="#i-instagram"/></svg><span>Instagram</span></a></li>
         <li><a href="https://www.tiktok.com/@wasemabdelhady" target="_blank" rel="noopener" aria-label="TikTok"><svg><use href="#i-tiktok"/></svg><span>TikTok</span></a></li>
@@ -753,6 +772,7 @@
           <span class="contact__value" dir="ltr">+20 10 1092 6863</span>
         </a>
       </div>
+      <a class="press-link" href="/press/">Press Kit · ملف صحفي ←</a>
     </section>
 
   </main>
@@ -808,6 +828,9 @@
       sec.hidden = false;
       tick();
     })();
+
+    // WhatsApp channel card appears only once it has a link
+    document.querySelectorAll('a.channel').forEach(function (a) { if (a.getAttribute('href')) a.hidden = false; });
 
     // Hero loop: skip on reduced motion or data saver; fade in only once it is actually playing
     (function () {

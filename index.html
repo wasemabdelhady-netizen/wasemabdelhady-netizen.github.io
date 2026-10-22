@@ -341,10 +341,20 @@
   .videos { display:grid; gap:16px; }
   .video {
     position:relative; width:100%; aspect-ratio:16/9; border:0; border-radius:14px; overflow:hidden;
-    background:#141210 center/cover no-repeat; cursor:pointer; color:var(--text);
-    display:flex; align-items:center; justify-content:center;
+    background:#141210; cursor:pointer; color:var(--text);
+    display:flex; align-items:center; justify-content:center; isolation:isolate;
+    --amb:var(--gold); --acc:var(--gold);
+    box-shadow:0 18px 50px -14px color-mix(in srgb, var(--amb) 75%, transparent);
+    transition:transform .3s ease, box-shadow .4s ease;
   }
-  iframe.video { display:block; }
+  /* Thumbnail on its own layer so it can zoom slightly inside the frame on hover */
+  .video::before { content:""; position:absolute; inset:0; z-index:-1; background:var(--thumb, none) center/cover no-repeat; transition:transform .6s ease; }
+  .video:hover, .video:focus-visible {
+    transform:translateY(-4px);
+    box-shadow:0 26px 70px -10px var(--amb), 0 0 0 1px color-mix(in srgb, var(--acc) 45%, transparent);
+  }
+  .video:hover::before, .video:focus-visible::before { transform:scale(1.05); }
+  iframe.video { display:block; transform:none; }
   .video::after { content:""; position:absolute; inset:0; background:linear-gradient(to top, rgba(10,10,10,.85), rgba(10,10,10,.1) 55%); }
   .video__play {
     position:relative; z-index:1; width:64px; height:64px; border-radius:50%;
@@ -420,7 +430,7 @@
   @media (prefers-reduced-motion:reduce) {
     html { scroll-behavior:auto; }
     .hero__content { animation:none; }
-    .song .cover, .video__play { transition:none; }
+    .song .cover, .video__play, .video, .video::before { transition:none; }
   }
 </style>
 </head>
@@ -546,15 +556,15 @@
       </div>
       <!-- data-yt = YouTube video ID (الجزء اللي بعد youtu.be/) -->
       <div class="videos">
-        <button class="video video--main" type="button" data-yt="SYH-gLZuNs4" aria-label="شغّل كليب بقولك ايه">
+        <button class="video video--main" type="button" style="--amb:#2b56a0;--acc:#e73540" data-yt="SYH-gLZuNs4" aria-label="شغّل كليب بقولك ايه">
           <span class="video__play"><svg><use href="#i-play"/></svg></span>
           <span class="video__label">بقولك ايه <span lang="en" dir="ltr">Ba2olak Eh</span></span>
         </button>
-        <button class="video" type="button" data-yt="2M8zF7OjcY8" aria-label="شغّل فيديو مش لعبة">
+        <button class="video" type="button" style="--amb:#04899a;--acc:#e78e22" data-yt="2M8zF7OjcY8" aria-label="شغّل فيديو مش لعبة">
           <span class="video__play"><svg><use href="#i-play"/></svg></span>
           <span class="video__label">مش لعبة <span lang="en" dir="ltr">Mesh Le3ba</span></span>
         </button>
-        <button class="video" type="button" data-yt="XPX0FuAgUc4" aria-label="شغّل فيديو انت الحبيب">
+        <button class="video" type="button" style="--amb:#7d848c;--acc:#e6e6e6" data-yt="XPX0FuAgUc4" aria-label="شغّل فيديو انت الحبيب">
           <span class="video__play"><svg><use href="#i-play"/></svg></span>
           <span class="video__label">انت الحبيب <span lang="en" dir="ltr">Enta El Habib</span></span>
         </button>
@@ -657,10 +667,10 @@
     })();
 
     // Click-to-load YouTube: no iframe until the visitor presses play (keeps the page light)
-    document.querySelectorAll('.video').forEach(function (btn) {
+    document.querySelectorAll('button.video').forEach(function (btn) {
       var id = btn.dataset.yt;
       if (!id) { btn.disabled = true; btn.classList.add('is-pending'); return; }
-      btn.style.backgroundImage = 'url(https://i.ytimg.com/vi/' + id + '/hqdefault.jpg)';
+      btn.style.setProperty('--thumb', 'url(https://i.ytimg.com/vi/' + id + '/hqdefault.jpg)');
       btn.addEventListener('click', function () {
         var f = document.createElement('iframe');
         f.className = btn.className;

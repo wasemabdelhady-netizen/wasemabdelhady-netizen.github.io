@@ -877,9 +877,17 @@
       var v = document.querySelector('.hero__video');
       var c = navigator.connection;
       if (!v || matchMedia('(prefers-reduced-motion: reduce)').matches || (c && c.saveData)) return;
+      v.muted = true; v.playsInline = true;
       v.src = v.dataset.src;
       v.addEventListener('playing', function () { v.classList.add('is-playing'); }, { once: true });
-      v.play().catch(function () {});
+      // iPhone Low Power Mode blocks autoplay; it allows play after the first touch or scroll
+      var kick = function () {
+        ['touchstart', 'pointerdown', 'scroll', 'keydown'].forEach(function (e) { removeEventListener(e, kick); });
+        v.play().catch(function () {});
+      };
+      v.play().catch(function () {
+        ['touchstart', 'pointerdown', 'scroll', 'keydown'].forEach(function (e) { addEventListener(e, kick, { passive: true }); });
+      });
     })();
 
     // Signature writes itself once when the footer comes into view (stays fully drawn without JS or with reduced motion)

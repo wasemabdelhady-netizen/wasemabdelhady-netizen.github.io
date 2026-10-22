@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>الصفحة مش موجودة | Wasem Abdelhady</title>
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#0a0a0a">
+<link rel="icon" type="image/png" sizes="32x32" href="/icon-32.png">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;700&family=Reem+Kufi:wght@700&family=Syne:wght@700;800&display=swap" rel="stylesheet">
+<style>
+  :root { --bg:#0a0a0a; --gold:#e0a458; --text:#f5efe6; --muted:rgba(245,239,230,.62); }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    min-height:100vh; min-height:100svh;
+    display:grid; place-items:center; text-align:center;
+    padding:40px max(20px, env(safe-area-inset-right)) 40px max(20px, env(safe-area-inset-left));
+    background:radial-gradient(60% 45% at 50% 40%, rgba(224,164,88,.12), transparent 70%), var(--bg);
+    color:var(--text); font-family:'Cairo',system-ui,sans-serif;
+  }
+  .code {
+    font-family:'Syne',system-ui,sans-serif; font-weight:800; line-height:.9;
+    font-size:min(26vw, 200px); color:transparent;
+    -webkit-text-stroke:1.5px var(--gold); letter-spacing:-.02em; direction:ltr;
+  }
+  h1 { margin-top:18px; font-family:'Reem Kufi','Cairo',sans-serif; font-weight:700; font-size:clamp(26px, 7vw, 36px); }
+  .en { margin-top:6px; font-family:'Syne',system-ui,sans-serif; font-weight:700; font-size:12px; letter-spacing:.32em; color:var(--muted); direction:ltr; }
+  p.sub { margin-top:14px; color:var(--muted); font-size:16px; }
+  a.btn {
+    display:inline-flex; align-items:center; justify-content:center; margin-top:28px;
+    height:50px; padding:0 30px; border-radius:999px;
+    background:var(--gold); color:var(--bg); font-weight:700; font-size:16px; text-decoration:none;
+    box-shadow:0 10px 30px rgba(224,164,88,.25); transition:transform .2s;
+  }
+  a.btn:hover { transform:translateY(-2px); }
+  a.btn:focus-visible { outline:2px solid var(--text); outline-offset:3px; }
+</style>
+</head>
+<body>
+  <main>
+    <div class="code">404</div>
+    <h1>الصفحة دي مش موجودة</h1>
+    <p class="en">PAGE NOT FOUND</p>
+    <p class="sub">يمكن اللينك اتغيّر أو فيه حرف غلط.</p>
+    <a class="btn" href="/">ارجع للرئيسية · Home</a>
+  </main>
+</body>
+</html>

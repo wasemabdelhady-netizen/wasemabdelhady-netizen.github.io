@@ -1,0 +1,8 @@
+output/*
+!output/.keep
+settings.json
+error.log
+__pycache__/
+python/
+ffmpeg/
+fonts/emoji/

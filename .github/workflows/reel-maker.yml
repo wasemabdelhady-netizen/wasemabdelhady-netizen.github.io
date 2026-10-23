@@ -1,0 +1,94 @@
+name: Reel Maker (Windows bundle)
+
+on:
+  push:
+    paths:
+      - "reel-maker/**"
+      - ".github/workflows/reel-maker.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update -qq && sudo apt-get install -y -qq msitools zstd
+      - run: python3 reel-maker/build/build_bundle.py dist
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ReelMaker-windows
+          path: dist/ReelMaker-windows.zip
+          retention-days: 14
+
+  test-windows:
+    needs: build
+    runs-on: windows-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: ReelMaker-windows
+      - name: Unzip into an Arabic path
+        shell: pwsh
+        run: |
+          $root = "C:\تجربة ريلز"
+          New-Item -ItemType Directory -Force $root | Out-Null
+          Expand-Archive ReelMaker-windows.zip -DestinationPath $root
+          Get-ChildItem "$root\ReelMaker"
+      - name: Python, tkinter, RAQM
+        shell: pwsh
+        run: |
+          $py = "C:\تجربة ريلز\ReelMaker\python\python.exe"
+          & $py -c "import sys, tkinter; from PIL import features, Image; print(sys.version); print('tk', tkinter.TkVersion); print('raqm', features.check('raqm'), features.version('raqm'), 'fribidi', features.version('fribidi'), 'harfbuzz', features.version('harfbuzz')); assert features.check('raqm')"
+          if ($LASTEXITCODE) { exit 1 }
+      - name: Render sample reels (Arabic file names)
+        shell: pwsh
+        run: |
+          $env:PYTHONIOENCODING = "utf-8"
+          $py = "C:\تجربة ريلز\ReelMaker\python\python.exe"
+          & $py "C:\تجربة ريلز\ReelMaker\app\selftest.py" "C:\تجربة ريلز\عينة"
+          if ($LASTEXITCODE) { exit 1 }
+      - name: START.bat opens the window
+        shell: pwsh
+        run: |
+          $dir = "C:\تجربة ريلز\ReelMaker"
+          Start-Process -FilePath "cmd.exe" -ArgumentList "/c", "`"$dir\START.bat`"" -WorkingDirectory $dir
+          Start-Sleep -Seconds 12
+          $p = Get-Process pythonw -ErrorAction SilentlyContinue
+          if (-not $p) { Get-Content "$dir\error.log" -ErrorAction SilentlyContinue; Write-Error "GUI did not start"; exit 1 }
+          & "$dir\python\python.exe" -c "from PIL import ImageGrab; ImageGrab.grab().save(r'C:\تجربة ريلز\عينة\gui.png')"
+          if (Test-Path "$dir\error.log") { Get-Content "$dir\error.log"; exit 1 }
+          Stop-Process -Name pythonw -Force
+      - name: Collect results
+        if: always()
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force results | Out-Null
+          Copy-Item "C:\تجربة ريلز\عينة\*.png" results -ErrorAction SilentlyContinue
+          Copy-Item "C:\تجربة ريلز\عينة\output\*" results -ErrorAction SilentlyContinue
+          Compress-Archive -Path results\* -DestinationPath selftest-results.zip -Force
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: selftest-results
+          path: selftest-results.zip
+
+  release:
+    needs: [build, test-windows]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          tag=reel-maker
+          gh release delete "$tag" -y --cleanup-tag -R "$GITHUB_REPOSITORY" || true
+          gh release create "$tag" -R "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+            --title "Reel Maker (Windows)" --prerelease \
+            --notes "حمّل ReelMaker-windows.zip، فكّه، ودوس START.bat. التفاصيل في README.md جوه الفولدر." \
+            ReelMaker-windows/ReelMaker-windows.zip selftest-results/selftest-results.zip

@@ -155,7 +155,7 @@ class App:
         cols = ("bar", "time", "daw", "c1", "c2", "c3", "c4", "qt")
         heads = ("بار", "الوقت", "DAW", "1", "2", "3", "4", "")
         widths = (50, 80, 70, 70, 70, 70, 70, 90)
-        self.tree = ttk.Treeview(f, columns=cols, show="headings", height=9)
+        self.tree = ttk.Treeview(f, columns=cols, show="headings", height=6)
         for c, h, w in zip(cols, heads, widths):
             self.tree.heading(c, text=h)
             self.tree.column(c, width=w, anchor="center")
@@ -190,13 +190,12 @@ class App:
         ttk.Label(ctl, text="   اسمع من ثانية:").pack(side="left")
         ttk.Entry(ctl, textvariable=self.v["start"], width=7).pack(side="left", padx=6)
         ttk.Button(ctl, text="■ وقّف", command=self.player.stop).pack(side="left", padx=6)
-        r += 1
-        bot = ttk.Frame(f)
-        bot.grid(row=r, column=0, columnspan=3, sticky="ew", pady=(10, 0))
-        self.exp = ttk.Button(bot, text="صدّر MIDI  ⬇", style="Go.TButton", command=self.export)
+        # export sits with the controls so it stays on screen on small laptops
+        self.exp = ttk.Button(ctl, text="صدّر MIDI  ⬇", style="Go.TButton", command=self.export)
         self.exp.pack(side="right")
-        self.result = ttk.Label(bot, text="", style="Hint.TLabel")
-        self.result.pack(side="left")
+        r += 1
+        self.result = ttk.Label(f, text="", style="Hint.TLabel")
+        self.result.grid(row=r, column=0, columnspan=3, sticky="w", pady=(6, 0))
         self.sync()
         root.protocol("WM_DELETE_WINDOW", self.close)
         root.after(100, self.poll)
@@ -362,7 +361,7 @@ def main():
     if len(sys.argv) >= 4 and sys.argv[1] == "--autotest":  # used by the Windows CI test
         autotest = {"out": sys.argv[2], "song": sys.argv[3], "stem": sys.argv[4] if len(sys.argv) > 4 else ""}
     root = tk.Tk()
-    root.minsize(860, 640)
+    root.minsize(860, 600)
     App(root, autotest)
     root.mainloop()
 

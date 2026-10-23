@@ -1,0 +1,123 @@
+name: OudLofiMaker (Windows bundle)
+
+on:
+  push:
+    paths:
+      - "oud-lofi/**"
+      - ".github/workflows/oud-lofi.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: oud-lofi
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update -qq && sudo apt-get install -y -qq msitools zstd
+      - run: python3 oud-lofi/build/build_bundle.py dist
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: OudLofiMaker-windows
+          path: dist/OudLofiMaker-windows.zip
+          retention-days: 14
+
+  test-windows:
+    needs: build
+    runs-on: windows-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: OudLofiMaker-windows
+      - name: Unzip into an Arabic path
+        shell: pwsh
+        run: |
+          $root = "C:\تجربة عود"
+          New-Item -ItemType Directory -Force $root | Out-Null
+          Expand-Archive OudLofiMaker-windows.zip -DestinationPath $root
+          Get-ChildItem "$root\OudLofiMaker"
+      - name: Python, tkinter, RAQM, ffmpeg
+        shell: pwsh
+        run: |
+          $dir = "C:\تجربة عود\OudLofiMaker"
+          & "$dir\python\python.exe" -c "import sys, tkinter; from PIL import features, Image; print(sys.version); print('tk', tkinter.TkVersion); print('raqm', features.check('raqm'), features.version('raqm'), 'fribidi', features.version('fribidi'), 'harfbuzz', features.version('harfbuzz')); assert features.check('raqm')"
+          if ($LASTEXITCODE) { exit 1 }
+          & "$dir\ffmpeg\ffmpeg.exe" -hide_banner -version | Select-Object -First 1
+          "logical CPUs: " + (Get-CimInstance Win32_Processor).NumberOfLogicalProcessors
+      - name: Render sample videos (Arabic file names, Arabic temp folder)
+        shell: pwsh
+        run: |
+          $env:PYTHONIOENCODING = "utf-8"
+          New-Item -ItemType Directory -Force "C:\تجربة عود\مؤقت" | Out-Null
+          $env:TEMP = "C:\تجربة عود\مؤقت"; $env:TMP = $env:TEMP
+          $py = "C:\تجربة عود\OudLofiMaker\python\python.exe"
+          & $py "C:\تجربة عود\OudLofiMaker\app\selftest.py" "C:\تجربة عود\عينة"
+          if ($LASTEXITCODE) { exit 1 }
+      - name: START.bat — GUI renders a full video from three tracks
+        shell: pwsh
+        run: |
+          $dir = "C:\تجربة عود\OudLofiMaker"
+          $s = "C:\تجربة عود\عينة"
+          $out = "$s\gui-result.json"
+          $env:TEMP = "C:\تجربة عود\مؤقت"; $env:TMP = $env:TEMP
+          $argline = "/c `"`"$dir\START.bat`" --autotest `"$out`" `"$s\خلفية عود.jpg`" `"$s\نسمة - Breeze.mp3`" `"$s\١ - ليل القاهرة - Cairo Night.wav`" `"$s\03_سهرة.wav`"`""
+          Start-Process -FilePath "cmd.exe" -ArgumentList $argline -WorkingDirectory $dir
+          Start-Sleep -Seconds 25
+          Add-Type -AssemblyName System.Windows.Forms, System.Drawing
+          $b = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
+          $bmp = New-Object System.Drawing.Bitmap $b.Width, $b.Height
+          [System.Drawing.Graphics]::FromImage($bmp).CopyFromScreen($b.Location, [System.Drawing.Point]::Empty, $b.Size)
+          $bmp.Save("$s\gui.png")
+          $t = 25
+          while (-not (Test-Path $out) -and $t -lt 900) { Start-Sleep -Seconds 3; $t += 3 }
+          Start-Sleep -Seconds 2
+          Stop-Process -Name pythonw -Force -ErrorAction SilentlyContinue
+          if (Test-Path "$dir\error.log") { Get-Content "$dir\error.log" -Encoding utf8; exit 1 }
+          if (-not (Test-Path $out)) { Write-Error "GUI produced no result"; exit 1 }
+          $r = Get-Content $out -Encoding utf8 -Raw | ConvertFrom-Json
+          $r | ConvertTo-Json -Depth 4
+          if ($r.error) { exit 1 }
+          if ($r.files.Count -ne 3) { Write-Error "expected mp4 + description + thumbnail"; exit 1 }
+          foreach ($f in $r.files) { if (-not (Test-Path $f)) { Write-Error "missing $f"; exit 1 } }
+          if (-not ($r.order[0] -like "*Breeze.mp3")) { Write-Error "track order not kept"; exit 1 }
+          if ([math]::Abs($r.lufs + 14) -gt 1) { Write-Error "loudness off: $($r.lufs)"; exit 1 }
+          Get-Content ($r.files | Where-Object { $_ -like "*.txt" }) -Encoding utf8
+          Get-ChildItem "$dir\output"
+      - name: Collect results
+        if: always()
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force results | Out-Null
+          $s = "C:\تجربة عود\عينة"
+          Copy-Item "$s\*.png", "$s\gui-result.json" results -ErrorAction SilentlyContinue
+          Copy-Item "$s\output\*.jpg", "$s\output\*.txt" results -ErrorAction SilentlyContinue
+          Copy-Item "C:\تجربة عود\OudLofiMaker\output\*" results -ErrorAction SilentlyContinue
+          Compress-Archive -Path results\* -DestinationPath selftest-results.zip -Force
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: selftest-results
+          path: selftest-results.zip
+
+  release:
+    needs: [build, test-windows]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          tag=oud-lofi
+          gh release delete "$tag" -y --cleanup-tag -R "$GITHUB_REPOSITORY" || true
+          gh release create "$tag" -R "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+            --title "OudLofiMaker (Windows)" --prerelease \
+            --notes "حمّل OudLofiMaker-windows.zip، فكّه، ودوس START.bat. التفاصيل في README.md جوه الفولدر." \
+            OudLofiMaker-windows/OudLofiMaker-windows.zip selftest-results/selftest-results.zip

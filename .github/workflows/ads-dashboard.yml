@@ -1,0 +1,57 @@
+name: AdsDashboard (test + release)
+
+on:
+  push:
+    paths:
+      - "ads-dashboard/**"
+      - ".github/workflows/ads-dashboard.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  test:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Built file is up to date
+        run: python3 ads-dashboard/build.py && git diff --exit-code ads-dashboard/AdsDashboard.html
+        if: runner.os == 'Linux'
+      - run: npm install --no-audit --no-fund
+        working-directory: ads-dashboard/test
+      - run: npx playwright install chromium
+        if: runner.os == 'Linux'
+        working-directory: ads-dashboard/test
+      - name: Test in Chromium (Linux) / Google Chrome (Windows)
+        shell: bash
+        run: |
+          if [ "$RUNNER_OS" = "Windows" ]; then export CHROME="C:\Program Files\Google\Chrome\Application\chrome.exe"; fi
+          node ads-dashboard/test/test.mjs out
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: screens-${{ matrix.os }}
+          path: out/*.png
+
+  release:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          tag=ads-dashboard
+          gh release delete "$tag" -y --cleanup-tag -R "$GITHUB_REPOSITORY" || true
+          gh release create "$tag" -R "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+            --title "AdsDashboard" --prerelease \
+            --notes "حمّل AdsDashboard.html وافتحه في Chrome. اعمل Export JSON كل فترة كباك أب." \
+            ads-dashboard/AdsDashboard.html

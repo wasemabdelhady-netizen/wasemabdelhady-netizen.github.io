@@ -1,0 +1,799 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ads Dashboard — وسيم</title>
+<style>
+@font-face{font-family:"Cairo";font-weight:200 1000;font-display:swap;src:url(data:font/woff2;base64,/*CAIRO_WOFF2*/) format("woff2")}
+:root{
+  --bg:#0a0a0a;--panel:#141210;--panel2:#1b1815;--line:#2b2620;--gold:#e0a458;--gold2:#f0bb70;
+  --text:#f5efe6;--muted:#9a8f80;--red:#ff5a4f;--redbg:rgba(255,90,79,.13);--goldbg:rgba(224,164,88,.16);
+  --tiktok:#2ee6d6;--instagram:#e1306c;--facebook:#4a8cff;--youtube:#ff8a3d;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--text);font-family:"Cairo",system-ui,sans-serif;font-size:15px;line-height:1.6}
+body{padding:0 16px 60px}
+a{color:var(--gold)}
+header{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:18px 0 10px;border-bottom:1px solid var(--line)}
+h1{margin:0;font-size:24px;font-weight:800;color:var(--gold);letter-spacing:.2px}
+h1 small{color:var(--muted);font-weight:500;font-size:14px;margin-inline-start:8px}
+h2{font-size:18px;margin:26px 0 10px;font-weight:700}
+.actions{display:flex;gap:8px;flex-wrap:wrap}
+button,.btn{font:inherit;font-weight:700;border:1px solid var(--line);background:var(--panel2);color:var(--text);padding:7px 14px;border-radius:10px;cursor:pointer;display:inline-flex;align-items:center;gap:6px}
+button:hover,.btn:hover{border-color:var(--gold)}
+button.primary{background:var(--gold);color:#0a0a0a;border-color:var(--gold)}
+button.primary:hover{background:var(--gold2)}
+button.danger{color:var(--red)}
+button.small{padding:3px 10px;font-size:13px;border-radius:8px}
+nav{display:flex;gap:6px;overflow-x:auto;padding:12px 0;position:sticky;top:0;background:var(--bg);z-index:5;border-bottom:1px solid var(--line)}
+nav button{white-space:nowrap;background:transparent;border-color:transparent;color:var(--muted)}
+nav button.on{color:var(--gold);border-color:var(--gold);background:var(--goldbg)}
+section{display:none}
+section.on{display:block}
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;margin-top:16px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px 16px;position:relative;overflow:hidden}
+.card::before{content:"";position:absolute;inset-inline-start:0;top:0;bottom:0;width:4px;background:var(--c,var(--gold))}
+.card h3{margin:0 0 6px;font-size:16px;display:flex;align-items:center;gap:8px}
+.card .big{font-size:24px;font-weight:800}
+.card .big small{font-size:14px;font-weight:600;color:var(--muted)}
+.card dl{display:grid;grid-template-columns:auto 1fr;gap:2px 12px;margin:8px 0 0;font-size:14px}
+.card dt{color:var(--muted)}
+.card dd{margin:0;text-align:left;font-weight:700}
+.dot{width:10px;height:10px;border-radius:50%;background:var(--c);display:inline-block}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px 16px}
+.hint{color:var(--muted);font-size:13px}
+.scroll{overflow-x:auto;border:1px solid var(--line);border-radius:12px;background:var(--panel)}
+table{border-collapse:collapse;width:100%;font-size:14px}
+th,td{padding:8px 10px;border-bottom:1px solid var(--line);white-space:nowrap;text-align:right}
+th{position:sticky;top:0;background:var(--panel2);color:var(--gold);font-weight:700;cursor:pointer;user-select:none}
+th[data-sort]::after{content:"";margin-inline-start:4px;font-size:11px}
+th.asc::after{content:"▲"}th.desc::after{content:"▼"}
+td.n{direction:ltr;text-align:left;font-variant-numeric:tabular-nums}
+tr:last-child td{border-bottom:0}
+tr.best td{background:var(--goldbg)}
+td.best{color:var(--gold);font-weight:800}
+td.bad{color:var(--red);font-weight:800;background:var(--redbg)}
+.pill{display:inline-flex;align-items:center;gap:6px;padding:1px 10px;border-radius:20px;background:var(--panel2);border:1px solid var(--line);font-size:13px}
+.warn{color:#ffcc66;font-size:12px}
+form .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px 14px}
+label{display:flex;flex-direction:column;gap:3px;font-size:13px;color:var(--muted)}
+input,select,textarea{font:inherit;color:var(--text);background:var(--panel2);border:1px solid var(--line);border-radius:9px;padding:7px 10px;width:100%}
+input:focus,select:focus,textarea:focus{outline:none;border-color:var(--gold)}
+input[type=number]{direction:ltr;text-align:left}
+input[type=date]{direction:ltr;color-scheme:dark}
+textarea{min-height:120px;direction:ltr;font-family:ui-monospace,Consolas,monospace;font-size:12px}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:12px}
+.metrics{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.metrics .pill b{font-weight:800}
+.chart-wrap{direction:ltr;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:10px}
+.chart-wrap svg{width:100%;height:auto;display:block}
+.legend{display:flex;gap:14px;flex-wrap:wrap;direction:rtl;padding:4px 6px 0;font-size:13px}
+.empty{color:var(--muted);text-align:center;padding:30px 10px}
+.toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:var(--gold);color:#0a0a0a;font-weight:700;padding:8px 18px;border-radius:12px;opacity:0;transition:opacity .25s;pointer-events:none;z-index:20}
+.toast.show{opacity:1}
+.map td{white-space:normal}
+.map select{min-width:200px}
+.mode{display:flex;gap:16px;flex-wrap:wrap}
+.mode label{flex-direction:row;align-items:center;gap:6px;color:var(--text);font-size:14px}
+.mode input{width:auto}
+@media (max-width:600px){h1{font-size:20px}.card .big{font-size:21px}body{padding:0 12px 60px}}
+</style>
+</head>
+<body>
+<header>
+  <h1>لوحة الإعلانات <small>Ads Dashboard · وسيم</small></h1>
+  <div class="actions">
+    <button id="btn-export" type="button">⬇ Export JSON</button>
+    <label class="btn" style="flex-direction:row;color:var(--text)">⬆ Import JSON<input id="json-file" type="file" accept=".json,application/json" hidden></label>
+  </div>
+</header>
+
+<nav id="tabs">
+  <button data-tab="overview" class="on">نظرة عامة</button>
+  <button data-tab="ads">الإعلانات</button>
+  <button data-tab="reels">أنهي ريل شغّال</button>
+  <button data-tab="add">إضافة نتيجة</button>
+  <button data-tab="csv">استيراد CSV</button>
+  <button data-tab="records">السجلات</button>
+</nav>
+
+<section id="overview" class="on">
+  <div class="cards" id="cards"></div>
+  <h2>تكلفة المتابع مع الوقت <span class="hint">(تراكمي لحد كل تاريخ — بالجنيه)</span></h2>
+  <div class="chart-wrap"><div id="chart"></div><div class="legend" id="legend"></div></div>
+  <p class="hint" id="chart-note"></p>
+</section>
+
+<section id="ads">
+  <p class="hint">كل إعلان في سطر (آخر تشيك-إن ليه). دوس على أي عنوان عمود عشان ترتّب. <span style="color:var(--gold)">الدهبي</span> = أرخص متابع، <span style="color:var(--red)">الأحمر</span> = أكتر من 2 ج.م للمتابع.</p>
+  <div class="scroll"><table id="ads-table"></table></div>
+</section>
+
+<section id="reels">
+  <p class="hint">النتايج متجمعة على الريل اللي اتعمل بيه الإعلان — عشان تعرف تحط فلوسك فين.</p>
+  <div class="scroll"><table id="reels-table"></table></div>
+</section>
+
+<section id="add">
+  <form id="form" class="panel" autocomplete="off">
+    <input type="hidden" name="id">
+    <div class="grid">
+      <label>التاريخ<input type="date" name="date"></label>
+      <label>المنصة<select name="platform">
+        <option value="tiktok">TikTok</option><option value="instagram">Instagram</option>
+        <option value="facebook">Facebook</option><option value="youtube">YouTube</option></select></label>
+      <label>اسم الإعلان<input name="ad" list="dl-ads" required></label>
+      <label>الريل المستخدم<input name="reel" list="dl-reels"></label>
+      <label>الهدف<input name="objective" list="dl-obj" placeholder="متابعين / زيارات بروفايل / مشاهدات…"></label>
+      <label>الجمهور<input name="audience" placeholder="مثلاً: مصر 18-34"></label>
+      <label>الميزانية (ج.م)<input type="number" step="any" min="0" name="budget"></label>
+      <label>المصروف (ج.م)<input type="number" step="any" min="0" name="spent"></label>
+      <label>المشاهدات<input type="number" step="1" min="0" name="views"></label>
+      <label>زيارات البروفايل<input type="number" step="1" min="0" name="visits"></label>
+      <label>متابعين جداد<input type="number" step="1" min="0" name="followers"></label>
+      <label>حفظ (Saves)<input type="number" step="1" min="0" name="saves"></label>
+      <label>شير (Shares)<input type="number" step="1" min="0" name="shares"></label>
+      <label style="grid-column:1/-1">ملاحظة<input name="note"></label>
+    </div>
+    <div class="metrics" id="form-metrics"></div>
+    <div class="row">
+      <button class="primary" type="submit" id="form-submit">➕ ضيف</button>
+      <button type="button" id="form-reset">تفريغ</button>
+      <span class="hint">سيب الخانة فاضية لو الرقم مش معروف (غير الصفر).</span>
+    </div>
+  </form>
+  <datalist id="dl-ads"></datalist><datalist id="dl-reels"></datalist>
+  <datalist id="dl-obj"><option value="متابعين"><option value="زيارات بروفايل"><option value="مشاهدات"><option value="تفاعل"><option value="وصول"></datalist>
+  <h2>الأرقام اللي بتدخلها</h2>
+  <div class="panel mode" id="mode">
+    <label><input type="radio" name="mode" value="cumulative"> إجمالي الإعلان لحد يوم التشيك-إن (زي ما Ads Manager بيعرض)</label>
+    <label><input type="radio" name="mode" value="period"> نتايج الفترة دي بس (بتتجمع)</label>
+  </div>
+  <p class="hint">«إجمالي»: لكل إعلان بناخد آخر تشيك-إن. «الفترة بس»: بنجمع كل التشيك-إنات.</p>
+</section>
+
+<section id="csv">
+  <div class="panel">
+    <div class="row" style="margin-top:0">
+      <label class="btn" style="flex-direction:row;color:var(--text)">📄 اختار ملف CSV<input id="csv-file" type="file" accept=".csv,.txt,text/csv" hidden></label>
+      <span class="hint">أو الزق محتوى الـ CSV تحت (من Meta Ads Manager أو TikTok Ads Manager ← Export ← CSV).</span>
+    </div>
+    <textarea id="csv-text" placeholder="Ad name,Amount spent (EGP),ThruPlays,..."></textarea>
+    <div class="row"><button type="button" id="csv-read" class="primary">اقرا الأعمدة</button><span class="hint" id="csv-info"></span></div>
+  </div>
+  <div id="csv-map" style="display:none">
+    <h2>ربط الأعمدة</h2>
+    <div class="row" style="margin-top:0">
+      <label style="min-width:180px">المنصة<select id="csv-platform">
+        <option value="auto">من عمود في الملف / تلقائي</option><option value="tiktok">TikTok</option>
+        <option value="instagram">Instagram</option><option value="facebook">Facebook</option><option value="youtube">YouTube</option></select></label>
+      <label style="min-width:180px">التاريخ لو مفيش عمود تاريخ<input type="date" id="csv-date"></label>
+    </div>
+    <div class="scroll" style="margin-top:12px"><table class="map" id="csv-map-table"></table></div>
+    <h2>معاينة</h2>
+    <div class="scroll"><table id="csv-preview"></table></div>
+    <div class="row"><button type="button" class="primary" id="csv-import">⬇ استورد</button><span class="hint" id="csv-count"></span></div>
+  </div>
+</section>
+
+<section id="records">
+  <p class="hint">كل التشيك-إنات. «تعديل» بيفتح السطر في فورم الإضافة.</p>
+  <div class="scroll"><table id="records-table"></table></div>
+  <div class="row"><button type="button" class="danger" id="btn-clear">🗑 امسح كل البيانات</button>
+    <span class="hint">اعمل Export JSON الأول كنسخة احتياطي.</span></div>
+</section>
+
+<div class="toast" id="toast"></div>
+
+<script>
+"use strict";
+const KEY = "wasem-ads-dashboard-v1";
+const PLATFORMS = {
+  tiktok: {name: "TikTok", color: "var(--tiktok)", hex: "#2ee6d6"},
+  instagram: {name: "Instagram", color: "var(--instagram)", hex: "#e1306c"},
+  facebook: {name: "Facebook", color: "var(--facebook)", hex: "#4a8cff"},
+  youtube: {name: "YouTube", color: "var(--youtube)", hex: "#ff8a3d"},
+};
+const NUM = ["budget", "spent", "views", "visits", "followers", "saves", "shares"];
+const TEXT = ["date", "platform", "ad", "reel", "objective", "audience", "note"];
+const RED_CPF = 2;
+
+const SEED = [
+  {id: "seed-tiktok-ta3bt", date: "", platform: "tiktok", ad: "تعبت أشرح", reel: "تعبت أشرح",
+   objective: "متابعين", audience: "مصر", budget: null, spent: 141.6, views: null, visits: null,
+   followers: 354, saves: null, shares: null,
+   note: "تقريبي: ~354 متابع × 0.40 ج.م — المصروف محسوب منهم. ضيف التاريخ والأرقام بالظبط من TikTok."},
+  {id: "seed-ig-btsm3", date: "", platform: "instagram", ad: "بتسمع كلامه", reel: "بتسمع كلامه",
+   objective: "", audience: "", budget: null, spent: 398.9, views: 5400, visits: 138,
+   followers: 2, saves: null, shares: null, note: "المشاهدات = ThruPlays. ضيف التاريخ."},
+  {id: "seed-ig-train-rain", date: "2026-10-23", platform: "instagram", ad: "train + rain", reel: "train + rain",
+   objective: "", audience: "", budget: 400, spent: null, views: null, visits: null,
+   followers: null, saves: null, shares: null, note: "بدأت 23 أكتوبر — 400 ج.م على 4 أيام. لسه مفيش نتايج."},
+];
+
+// ---------------------------------------------------------------- state
+let state = load();
+
+function load() {
+  try {
+    const raw = localStorage.getItem(KEY);
+    if (raw) {
+      const s = JSON.parse(raw);
+      if (s && Array.isArray(s.rows)) return {mode: s.mode === "period" ? "period" : "cumulative", rows: s.rows.map(clean)};
+    }
+  } catch (e) { console.warn(e); }
+  return {mode: "cumulative", rows: SEED.map(clean)};
+}
+function save() {
+  try { localStorage.setItem(KEY, JSON.stringify({version: 1, mode: state.mode, rows: state.rows})); }
+  catch (e) { toast("مش قادر أحفظ في المتصفح!"); }
+}
+function clean(r) {
+  const o = {id: String(r.id || uid())};
+  TEXT.forEach(k => o[k] = r[k] == null ? "" : String(r[k]).trim());
+  if (!PLATFORMS[o.platform]) o.platform = guessPlatform(o.platform) || "instagram";
+  if (o.date && !/^\d{4}-\d{2}-\d{2}$/.test(o.date)) o.date = parseDate(o.date);
+  NUM.forEach(k => o[k] = toNum(r[k]));
+  return o;
+}
+function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
+
+// ---------------------------------------------------------------- numbers
+const AR_DIGITS = "٠١٢٣٤٥٦٧٨٩", FA_DIGITS = "۰۱۲۳۴۵۶۷۸۹";
+function toNum(v) {
+  if (v === null || v === undefined) return null;
+  if (typeof v === "number") return isFinite(v) ? v : null;
+  let s = String(v).trim();
+  if (!s || s === "-" || s === "—" || /^n\/?a$/i.test(s)) return null;
+  s = s.replace(/[٠-٩]/g, d => AR_DIGITS.indexOf(d)).replace(/[۰-۹]/g, d => FA_DIGITS.indexOf(d));
+  s = s.replace(/٫/g, ".").replace(/[٬,\s]/g, "").replace(/[^\d.\-]/g, "");
+  if (!s || s === "." || s === "-") return null;
+  const n = parseFloat(s);
+  return isFinite(n) ? n : null;
+}
+function div(a, b) { return a == null || b == null || b === 0 ? null : a / b; }
+function metrics(t) {
+  return {
+    cpf: div(t.spent, t.followers),
+    cpv: div(t.spent, t.visits),
+    cpm: t.spent == null || !t.views ? null : t.spent / t.views * 1000,
+    follow: div(t.followers, t.visits),
+    ss: (t.saves == null && t.shares == null) || !t.views ? null : ((t.saves || 0) + (t.shares || 0)) / t.views,
+  };
+}
+const fmtN = (n, d = 0) => n == null ? "—" : n.toLocaleString("en-US", {minimumFractionDigits: d, maximumFractionDigits: d});
+const fmtE = n => n == null ? "—" : "<bdi>" + fmtN(n, 2) + "</bdi> ج.م";
+const fmtP = n => n == null ? "—" : fmtN(n * 100, n * 100 < 10 ? 2 : 1) + "%";
+function esc(s) { return String(s).replace(/[&<>"']/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"}[c])); }
+function addN(a, b) { return a == null ? b : b == null ? a : a + b; }
+
+// ---------------------------------------------------------------- aggregation
+function byDate(a, b) { return (a.date || "").localeCompare(b.date || ""); }
+function adKey(r) { return r.platform + "|" + r.ad.trim().toLowerCase(); }
+
+/** One entry per ad: latest check-in (cumulative mode) or the sum (period mode). */
+function adTotals(rows, upto) {
+  const groups = new Map();
+  rows.forEach((r, i) => {
+    if (upto && (!r.date || r.date > upto)) return;
+    const k = adKey(r);
+    if (!groups.has(k)) groups.set(k, []);
+    groups.get(k).push({r, i});
+  });
+  const out = [];
+  for (const list of groups.values()) {
+    list.sort((a, b) => byDate(a.r, b.r) || a.i - b.i);
+    const last = list[list.length - 1].r;
+    const t = {key: adKey(last), platform: last.platform, ad: last.ad, checkins: list.length, lastDate: last.date};
+    ["reel", "objective", "audience"].forEach(k => { t[k] = ""; for (const x of list) if (x.r[k]) t[k] = x.r[k]; });
+    if (state.mode === "period") NUM.forEach(k => t[k] = list.reduce((s, x) => addN(s, x.r[k]), null));
+    else NUM.forEach(k => { t[k] = null; for (const x of list) if (x.r[k] != null) t[k] = x.r[k]; });
+    if (state.mode === "period") t.budget = last.budget;
+    t.m = metrics(t);
+    t.dated = list.every(x => x.r.date);
+    out.push(t);
+  }
+  return out;
+}
+function sumTotals(list) {
+  const t = {};
+  NUM.forEach(k => t[k] = list.reduce((s, x) => addN(s, x[k]), null));
+  // cost per follower counts only spend that has follower data
+  const withF = list.filter(x => x.followers != null && x.spent != null);
+  t.spentF = withF.reduce((s, x) => s + x.spent, 0);
+  t.followersF = withF.reduce((s, x) => s + x.followers, 0);
+  t.m = metrics(t);
+  t.m.cpf = withF.length ? div(t.spentF, t.followersF) : null;
+  return t;
+}
+function bestCpf(list) {
+  let best = null;
+  list.forEach(t => { if (t.m.cpf != null && t.followers > 0 && (best == null || t.m.cpf < best)) best = t.m.cpf; });
+  return best;
+}
+
+// ---------------------------------------------------------------- render: overview
+function render() {
+  renderCards(); renderChart(); renderAds(); renderReels(); renderRecords(); renderLists();
+  document.querySelectorAll('#mode input').forEach(i => i.checked = i.value === state.mode);
+}
+
+function renderCards() {
+  const ads = adTotals(state.rows);
+  const best = bestCpf(Object.keys(PLATFORMS).map(p => sumTotals(ads.filter(a => a.platform === p))).filter(t => t.followers));
+  let html = "";
+  const all = sumTotals(ads);
+  for (const [p, info] of Object.entries(PLATFORMS)) {
+    const list = ads.filter(a => a.platform === p);
+    if (!list.length) continue;
+    html += card(info.name, info.color, sumTotals(list), list.length, best, "card-" + p);
+  }
+  html += card("الإجمالي", "var(--gold)", all, ads.length, null, "card-all");
+  document.getElementById("cards").innerHTML = html || '<div class="empty">لسه مفيش بيانات — ضيف أول نتيجة.</div>';
+}
+function card(title, color, t, n, best, id) {
+  const cpf = t.m.cpf;
+  const cls = cpf == null ? "" : cpf > RED_CPF ? "bad" : best != null && Math.abs(cpf - best) < 1e-9 ? "best" : "";
+  const style = cls === "bad" ? "color:var(--red)" : cls === "best" ? "color:var(--gold)" : "";
+  return `<div class="card" id="${id}" style="--c:${color}"><h3><span class="dot"></span>${esc(title)}</h3>
+    <div class="hint">متوسط تكلفة المتابع</div>
+    <div class="big cpf" style="${style}">${cpf == null ? "—" : "<bdi>" + fmtN(cpf, 2) + "</bdi> <small>ج.م</small>"}</div>
+    <dl><dt>المصروف</dt><dd class="spent">${fmtE(t.spent)}</dd>
+    <dt>متابعين جداد</dt><dd class="followers">${fmtN(t.followers)}</dd>
+    <dt>زيارات البروفايل</dt><dd>${fmtN(t.visits)}</dd>
+    <dt>المشاهدات</dt><dd>${fmtN(t.views)}</dd>
+    <dt>الإعلانات</dt><dd>${n}</dd></dl></div>`;
+}
+
+// ---------------------------------------------------------------- chart (hand-drawn SVG)
+function renderChart() {
+  const dates = [...new Set(state.rows.filter(r => r.date).map(r => r.date))].sort();
+  const series = [];
+  for (const [p, info] of Object.entries(PLATFORMS)) {
+    const pts = [];
+    for (const d of dates) {
+      if (!state.rows.some(r => r.platform === p && r.date === d)) continue;
+      const t = sumTotals(adTotals(state.rows.filter(r => r.platform === p), d));
+      if (t.m.cpf != null && t.followersF > 0) pts.push({d, v: t.m.cpf});
+    }
+    if (pts.length) series.push({p, info, pts});
+  }
+  const undated = state.rows.filter(r => !r.date).length;
+  document.getElementById("chart-note").textContent = undated
+    ? `فيه ${undated} سجل من غير تاريخ مش ظاهرين في الرسم — ضيفلهم تاريخ من «السجلات».` : "";
+  const el = document.getElementById("chart"), lg = document.getElementById("legend");
+  if (!series.length) {
+    el.innerHTML = '<div class="empty">الرسم محتاج تشيك-إن ليه تاريخ ومصروف ومتابعين.</div>';
+    lg.innerHTML = "";
+    return;
+  }
+  const W = 860, H = 330, L = 58, R = 18, T = 16, B = 42;
+  const vals = series.flatMap(s => s.pts.map(x => x.v)).concat([RED_CPF]);
+  let lo = Math.min(...vals), hi = Math.max(...vals);
+  const log = hi / Math.max(lo, 1e-6) > 20;
+  let y, ticks;
+  if (log) {
+    const cand = [0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1, 2, 5, 10, 20, 50, 100, 200, 500, 1000, 2000, 5000];
+    const a = Math.log10(lo * 0.8), b = Math.log10(hi * 1.25);
+    y = v => T + (H - T - B) * (1 - (Math.log10(v) - a) / (b - a));
+    ticks = cand.filter(v => Math.log10(v) >= a && Math.log10(v) <= b);
+  } else {
+    hi = hi * 1.15;
+    const step = niceStep(hi / 5);
+    y = v => T + (H - T - B) * (1 - v / hi);
+    ticks = [];
+    for (let v = 0; v <= hi + 1e-9; v += step) ticks.push(+v.toFixed(6));
+  }
+  const t0 = Date.parse(dates[0]), t1 = Date.parse(dates[dates.length - 1]);
+  const x = d => dates.length === 1 ? (L + W - R) / 2 : L + (W - L - R) * (Date.parse(d) - t0) / (t1 - t0);
+  let s = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="cost per follower over time">`;
+  for (const v of ticks) {
+    s += `<line x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}" stroke="#2b2620"/>`;
+    s += `<text x="${L - 8}" y="${y(v) + 4}" fill="#9a8f80" font-size="12" text-anchor="end">${fmtTick(v)}</text>`;
+  }
+  s += `<line x1="${L}" x2="${W - R}" y1="${y(RED_CPF)}" y2="${y(RED_CPF)}" stroke="#ff5a4f" stroke-dasharray="6 5" opacity=".8"/>`;
+  s += `<text x="${W - R}" y="${y(RED_CPF) - 6}" fill="#ff5a4f" font-size="12" text-anchor="end">2 ج.م</text>`;
+  const shown = dates.length <= 8 ? dates : dates.filter((d, i) => i % Math.ceil(dates.length / 8) === 0 || i === dates.length - 1);
+  for (const d of shown) s += `<text x="${x(d)}" y="${H - B + 20}" fill="#9a8f80" font-size="12" text-anchor="middle">${d.slice(5).replace("-", "/")}</text>`;
+  if (log) s += `<text x="${L}" y="${H - 6}" fill="#9a8f80" font-size="11">log scale</text>`;
+  for (const se of series) {
+    const c = se.info.hex;
+    const path = se.pts.map((pt, i) => (i ? "L" : "M") + x(pt.d).toFixed(1) + "," + y(pt.v).toFixed(1)).join(" ");
+    s += `<path class="series" data-p="${se.p}" d="${path}" fill="none" stroke="${c}" stroke-width="2.5" stroke-linejoin="round"/>`;
+    for (const pt of se.pts) s += `<circle cx="${x(pt.d)}" cy="${y(pt.v)}" r="4.5" fill="#0a0a0a" stroke="${c}" stroke-width="2.5"><title>${se.info.name} · ${pt.d} · ${fmtN(pt.v, 2)} ج.م</title></circle>`;
+  }
+  el.innerHTML = s + "</svg>";
+  lg.innerHTML = series.map(se => `<span class="pill" style="--c:${se.info.color}"><span class="dot"></span>${se.info.name}</span>`).join("");
+}
+function niceStep(raw) {
+  const p = Math.pow(10, Math.floor(Math.log10(raw)));
+  for (const m of [1, 2, 2.5, 5, 10]) if (raw <= m * p) return m * p;
+  return 10 * p;
+}
+function fmtTick(v) { return v >= 100 ? fmtN(v) : v >= 1 ? fmtN(v, v % 1 ? 1 : 0) : String(+v.toFixed(2)); }
+
+// ---------------------------------------------------------------- tables
+const sortState = {ads: {k: "cpf", dir: 1}, reels: {k: "cpf", dir: 1}, records: {k: "date", dir: -1}};
+
+function sortRows(list, st, get) {
+  return list.slice().sort((a, b) => {
+    const va = get(a, st.k), vb = get(b, st.k);
+    const na = va == null || va === "", nb = vb == null || vb === "";
+    if (na || nb) return na === nb ? 0 : na ? 1 : -1;  // empty always last
+    return (typeof va === "string" ? va.localeCompare(vb, "ar") : va - vb) * st.dir;
+  });
+}
+function header(id, cols) {
+  const st = sortState[id];
+  return "<thead><tr>" + cols.map(c => c.k ? `<th data-sort="${c.k}" class="${st.k === c.k ? (st.dir > 0 ? "asc" : "desc") : ""}">${c.t}</th>` : `<th>${c.t}</th>`).join("") + "</tr></thead>";
+}
+function bindSort(tableId, id, rerender) {
+  document.querySelectorAll(`#${tableId} th[data-sort]`).forEach(th => th.onclick = () => {
+    const st = sortState[id], k = th.dataset.sort;
+    st.dir = st.k === k ? -st.dir : 1;
+    st.k = k;
+    rerender();
+  });
+}
+function cpfCell(t, best) {
+  const v = t.m.cpf;
+  if (v == null && t.spent > 0 && t.followers === 0) return `<td class="n bad">0 متابع</td>`;
+  const cls = v == null ? "" : v > RED_CPF ? "bad" : best != null && Math.abs(v - best) < 1e-9 ? "best" : "";
+  return `<td class="n cpf ${cls}">${v == null ? "—" : fmtN(v, 2)}</td>`;
+}
+const metricGet = (t, k) => t.m && k in t.m ? t.m[k] : t[k];
+function platformPill(p) { const i = PLATFORMS[p]; return `<span class="pill" style="--c:${i.color}"><span class="dot"></span>${i.name}</span>`; }
+
+const AD_COLS = [
+  {k: "platform", t: "المنصة"}, {k: "ad", t: "الإعلان"}, {k: "reel", t: "الريل"}, {k: "objective", t: "الهدف"},
+  {k: "audience", t: "الجمهور"}, {k: "budget", t: "الميزانية"}, {k: "spent", t: "المصروف"}, {k: "views", t: "مشاهدات"},
+  {k: "visits", t: "زيارات"}, {k: "followers", t: "متابعين"}, {k: "saves", t: "حفظ"}, {k: "shares", t: "شير"},
+  {k: "cpf", t: "تكلفة المتابع"}, {k: "cpv", t: "تكلفة الزيارة"}, {k: "cpm", t: "تكلفة 1000 مشاهدة"},
+  {k: "follow", t: "معدل المتابعة"}, {k: "ss", t: "حفظ+شير %"}, {k: "lastDate", t: "آخر تحديث"},
+];
+function renderAds() {
+  const ads = adTotals(state.rows), best = bestCpf(ads);
+  const rows = sortRows(ads, sortState.ads, metricGet).map(t => {
+    const isBest = best != null && t.m.cpf != null && Math.abs(t.m.cpf - best) < 1e-9;
+    return `<tr class="${isBest ? "best" : ""}" data-key="${esc(t.key)}"><td>${platformPill(t.platform)}</td><td><b>${esc(t.ad)}</b>${t.checkins > 1 ? ` <span class="hint">(${t.checkins} تشيك-إن)</span>` : ""}</td>
+      <td>${esc(t.reel || "—")}</td><td>${esc(t.objective || "—")}</td><td>${esc(t.audience || "—")}</td>
+      <td class="n">${fmtN(t.budget, 2)}</td><td class="n spent">${fmtN(t.spent, 2)}</td><td class="n">${fmtN(t.views)}</td>
+      <td class="n">${fmtN(t.visits)}</td><td class="n">${fmtN(t.followers)}</td><td class="n">${fmtN(t.saves)}</td><td class="n">${fmtN(t.shares)}</td>
+      ${cpfCell(t, best)}<td class="n cpv">${fmtN(t.m.cpv, 2)}</td><td class="n cpm">${fmtN(t.m.cpm, 2)}</td>
+      <td class="n follow">${fmtP(t.m.follow)}</td><td class="n ss">${fmtP(t.m.ss)}</td>
+      <td class="n">${t.lastDate || '<span class="warn">من غير تاريخ</span>'}</td></tr>`;
+  }).join("");
+  document.getElementById("ads-table").innerHTML = header("ads", AD_COLS) + "<tbody>" + (rows || `<tr><td colspan="18" class="empty">مفيش إعلانات</td></tr>`) + "</tbody>";
+  bindSort("ads-table", "ads", renderAds);
+}
+
+const REEL_COLS = [
+  {k: "reel", t: "الريل"}, {k: "count", t: "عدد الإعلانات"}, {t: "المنصات"}, {k: "spent", t: "المصروف"},
+  {k: "views", t: "مشاهدات"}, {k: "visits", t: "زيارات"}, {k: "followers", t: "متابعين"},
+  {k: "cpf", t: "تكلفة المتابع"}, {k: "cpv", t: "تكلفة الزيارة"}, {k: "cpm", t: "تكلفة 1000 مشاهدة"},
+  {k: "follow", t: "معدل المتابعة"}, {k: "ss", t: "حفظ+شير %"},
+];
+function renderReels() {
+  const ads = adTotals(state.rows), groups = new Map();
+  ads.forEach(a => { const k = a.reel || "من غير ريل"; if (!groups.has(k)) groups.set(k, []); groups.get(k).push(a); });
+  const list = [...groups].map(([reel, l]) => Object.assign(sumTotals(l), {reel, count: l.length, platforms: [...new Set(l.map(a => a.platform))]}));
+  const best = bestCpf(list);
+  const rows = sortRows(list, sortState.reels, metricGet).map(t => {
+    const isBest = best != null && t.m.cpf != null && Math.abs(t.m.cpf - best) < 1e-9;
+    return `<tr class="${isBest ? "best" : ""}"><td><b>${esc(t.reel)}</b></td><td class="n">${t.count}</td><td>${t.platforms.map(platformPill).join(" ")}</td>
+      <td class="n">${fmtN(t.spent, 2)}</td><td class="n">${fmtN(t.views)}</td><td class="n">${fmtN(t.visits)}</td><td class="n">${fmtN(t.followers)}</td>
+      ${cpfCell(t, best)}<td class="n">${fmtN(t.m.cpv, 2)}</td><td class="n">${fmtN(t.m.cpm, 2)}</td><td class="n">${fmtP(t.m.follow)}</td><td class="n">${fmtP(t.m.ss)}</td></tr>`;
+  }).join("");
+  document.getElementById("reels-table").innerHTML = header("reels", REEL_COLS) + "<tbody>" + (rows || `<tr><td colspan="12" class="empty">مفيش بيانات</td></tr>`) + "</tbody>";
+  bindSort("reels-table", "reels", renderReels);
+}
+
+const REC_COLS = [
+  {k: "date", t: "التاريخ"}, {k: "platform", t: "المنصة"}, {k: "ad", t: "الإعلان"}, {k: "reel", t: "الريل"},
+  {k: "spent", t: "المصروف"}, {k: "views", t: "مشاهدات"}, {k: "visits", t: "زيارات"}, {k: "followers", t: "متابعين"},
+  {k: "saves", t: "حفظ"}, {k: "shares", t: "شير"}, {t: "ملاحظة"}, {t: ""},
+];
+function renderRecords() {
+  const rows = sortRows(state.rows, sortState.records, (r, k) => r[k]).map(r => `<tr data-id="${esc(r.id)}">
+    <td class="n">${r.date || '<span class="warn">من غير تاريخ</span>'}</td><td>${platformPill(r.platform)}</td><td>${esc(r.ad)}</td><td>${esc(r.reel || "—")}</td>
+    <td class="n">${fmtN(r.spent, 2)}</td><td class="n">${fmtN(r.views)}</td><td class="n">${fmtN(r.visits)}</td><td class="n">${fmtN(r.followers)}</td>
+    <td class="n">${fmtN(r.saves)}</td><td class="n">${fmtN(r.shares)}</td><td style="white-space:normal;min-width:180px" class="hint">${esc(r.note)}</td>
+    <td><button class="small" data-edit="${esc(r.id)}">تعديل</button> <button class="small danger" data-del="${esc(r.id)}">حذف</button></td></tr>`).join("");
+  document.getElementById("records-table").innerHTML = header("records", REC_COLS) + "<tbody>" + (rows || `<tr><td colspan="12" class="empty">مفيش سجلات</td></tr>`) + "</tbody>";
+  bindSort("records-table", "records", renderRecords);
+  document.querySelectorAll("[data-edit]").forEach(b => b.onclick = () => editRow(b.dataset.edit));
+  document.querySelectorAll("[data-del]").forEach(b => b.onclick = () => {
+    const r = state.rows.find(x => x.id === b.dataset.del);
+    if (r && confirm(`أمسح التشيك-إن ده؟\n${r.ad} — ${r.date || "من غير تاريخ"}`)) {
+      state.rows = state.rows.filter(x => x !== r); save(); render(); toast("اتمسح");
+    }
+  });
+}
+function renderLists() {
+  const uniq = k => [...new Set(state.rows.map(r => r[k]).filter(Boolean))];
+  document.getElementById("dl-ads").innerHTML = uniq("ad").map(v => `<option value="${esc(v)}">`).join("");
+  document.getElementById("dl-reels").innerHTML = uniq("reel").map(v => `<option value="${esc(v)}">`).join("");
+}
+
+// ---------------------------------------------------------------- form
+const form = document.getElementById("form");
+function today() { const d = new Date(); return new Date(d - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10); }
+function formRow() {
+  const f = new FormData(form), r = {};
+  TEXT.forEach(k => r[k] = (f.get(k) || "").trim());
+  NUM.forEach(k => r[k] = toNum(f.get(k)));
+  r.id = f.get("id") || "";
+  return r;
+}
+function resetForm() {
+  form.reset();
+  form.elements.id.value = "";
+  form.elements.date.value = today();
+  document.getElementById("form-submit").textContent = "➕ ضيف";
+  updateFormMetrics();
+}
+function updateFormMetrics() {
+  const m = metrics(formRow());
+  document.getElementById("form-metrics").innerHTML =
+    [["تكلفة المتابع", fmtE(m.cpf)], ["تكلفة الزيارة", fmtE(m.cpv)], ["تكلفة 1000 مشاهدة", fmtE(m.cpm)],
+     ["معدل المتابعة", fmtP(m.follow)], ["حفظ+شير", fmtP(m.ss)]]
+      .map(([a, b]) => `<span class="pill">${a}: <b>${b}</b></span>`).join("");
+}
+function editRow(id) {
+  const r = state.rows.find(x => x.id === id);
+  if (!r) return;
+  TEXT.forEach(k => form.elements[k].value = r[k]);
+  NUM.forEach(k => form.elements[k].value = r[k] == null ? "" : r[k]);
+  form.elements.id.value = r.id;
+  document.getElementById("form-submit").textContent = "💾 احفظ التعديل";
+  showTab("add");
+  updateFormMetrics();
+}
+form.addEventListener("input", updateFormMetrics);
+form.elements.ad.addEventListener("change", () => {
+  // a new check-in for an existing ad: copy its setup
+  const name = form.elements.ad.value.trim(), p = form.elements.platform.value;
+  if (form.elements.id.value) return;
+  const prev = state.rows.filter(r => r.ad === name && r.platform === p).sort(byDate).pop()
+            || state.rows.filter(r => r.ad === name).sort(byDate).pop();
+  if (!prev) return;
+  form.elements.platform.value = prev.platform;
+  ["reel", "objective", "audience"].forEach(k => { if (!form.elements[k].value) form.elements[k].value = prev[k]; });
+  if (!form.elements.budget.value && prev.budget != null) form.elements.budget.value = prev.budget;
+});
+form.addEventListener("submit", e => {
+  e.preventDefault();
+  const r = clean(formRow());
+  if (!r.ad) { toast("اكتب اسم الإعلان"); return; }
+  const i = state.rows.findIndex(x => x.id === r.id);
+  if (i >= 0) state.rows[i] = r; else { r.id = uid(); state.rows.push(r); }
+  save(); render(); resetForm();
+  toast(i >= 0 ? "اتحفظ التعديل ✔" : "اتضاف ✔");
+});
+document.getElementById("form-reset").onclick = resetForm;
+document.querySelectorAll('#mode input').forEach(i => i.onchange = () => { state.mode = i.value; save(); render(); });
+
+// ---------------------------------------------------------------- CSV
+function parseCSV(text) {
+  text = text.replace(/^﻿/, "");
+  const first = text.split(/\r?\n/, 1)[0];
+  const counts = {",": 0, ";": 0, "\t": 0};
+  let q = false;
+  for (const ch of first) { if (ch === '"') q = !q; else if (!q && ch in counts) counts[ch]++; }
+  const sep = Object.keys(counts).sort((a, b) => counts[b] - counts[a])[0];
+  const rows = [];
+  let row = [], cell = "", inQ = false;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (inQ) {
+      if (ch === '"') { if (text[i + 1] === '"') { cell += '"'; i++; } else inQ = false; }
+      else cell += ch;
+    } else if (ch === '"') inQ = true;
+    else if (ch === sep) { row.push(cell); cell = ""; }
+    else if (ch === "\n" || ch === "\r") {
+      if (ch === "\r" && text[i + 1] === "\n") i++;
+      row.push(cell); cell = "";
+      if (row.some(c => c.trim() !== "")) rows.push(row);
+      row = [];
+    } else cell += ch;
+  }
+  row.push(cell);
+  if (row.some(c => c.trim() !== "")) rows.push(row);
+  return rows.map(r => r.map(c => c.trim()));
+}
+// field -> header patterns, best first
+const GUESS = {
+  date: [/^reporting starts$/i, /^(date|day|by day|stat time_day|time)$/i, /reporting start|start date|^date|\bdate\b/i, /بداية|التاريخ|^اليوم/],
+  platform: [/^platform$/i, /المنصة|^المنصّة/],
+  ad: [/^ad name$/i, /اسم الإعلان/, /^ad$/i, /ad name/i],
+  reel: [/^(post name|creative name|video name|reel)$/i, /creative|video name|post name|ريل/i],
+  objective: [/^objective$/i, /objective|optimi[sz]ation goal|result type|الهدف/i],
+  audience: [/^(ad set name|ad group name)$/i, /ad set name|ad group name|audience|مجموعة الإعلان|الجمهور/i],
+  budget: [/^(ad set budget|budget)$/i, /budget|الميزانية/i],
+  spent: [/^amount spent/i, /^(cost|spend|total cost)$/i, /amount spent|spend|^cost|المبلغ|إنفاق|المنفق|التكلفة$/i],
+  views: [/thruplays?/i, /^video views$/i, /video views|video plays|^views$|المشاهدات|مرات التشغيل/i, /^impressions$|مرات الظهور/i],
+  visits: [/profile visits/i, /زيارات/],
+  followers: [/^(paid followers|follows|new followers|instagram follows|followers)$/i, /follow|متابع/i],
+  saves: [/saves?$/i, /save|حفظ/i],
+  shares: [/shares?$/i, /share|مشارك/i],
+};
+const FIELD_LABEL = {date: "التاريخ", platform: "المنصة", ad: "اسم الإعلان", reel: "الريل", objective: "الهدف",
+  audience: "الجمهور", budget: "الميزانية", spent: "المصروف", views: "المشاهدات", visits: "زيارات البروفايل",
+  followers: "متابعين جداد", saves: "حفظ", shares: "شير"};
+let csv = null;
+
+function guessMap(headers) {
+  const map = {}, used = new Set();
+  for (const [f, pats] of Object.entries(GUESS)) {
+    map[f] = -1;
+    outer: for (const re of pats) for (let i = 0; i < headers.length; i++) {
+      if (used.has(i)) continue;
+      if (re.test(headers[i])) {
+        if (f === "followers" && /rate|cost|per|معدل|تكلفة/i.test(headers[i])) continue;
+        if (f === "visits" && /rate|cost|per|تكلفة/i.test(headers[i])) continue;
+        if (f === "views" && /cost|per|rate|تكلفة|2s|6-second|p\d+|25%|50%|75%|100%/i.test(headers[i])) continue;
+        if (f === "saves" && /rate|cost/i.test(headers[i])) continue;
+        if (f === "shares" && /rate|cost/i.test(headers[i])) continue;
+        map[f] = i; used.add(i); break outer;
+      }
+    }
+  }
+  return map;
+}
+function detectPlatform(headers) {
+  const h = headers.join("|").toLowerCase();
+  if (/paid followers|ad group|stat time|tiktok/.test(h)) return "tiktok";
+  if (/instagram/.test(h)) return "instagram";
+  if (/amount spent|thruplay|ad set/.test(h)) return "instagram";
+  return "instagram";
+}
+function guessPlatform(s) {
+  s = String(s || "").toLowerCase();
+  if (/tik/.test(s)) return "tiktok";
+  if (/insta|ig\b|انستا|إنستا/.test(s)) return "instagram";
+  if (/face|fb|فيس/.test(s)) return "facebook";
+  if (/you|yt|يوتيوب/.test(s)) return "youtube";
+  return "";
+}
+function parseDate(s) {
+  s = String(s || "").trim().replace(/[٠-٩]/g, d => AR_DIGITS.indexOf(d));
+  let m = s.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})/);
+  if (m) return `${m[1]}-${m[2].padStart(2, "0")}-${m[3].padStart(2, "0")}`;
+  m = s.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})/);
+  if (m) {  // day/month/year unless the first part can't be a day
+    let d = +m[1], mo = +m[2];
+    if (mo > 12 && d <= 12) [d, mo] = [mo, d];
+    return `${m[3]}-${String(mo).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+  }
+  const t = Date.parse(s);
+  return isNaN(t) ? "" : new Date(t).toISOString().slice(0, 10);
+}
+function readCSV() {
+  const text = document.getElementById("csv-text").value;
+  const rows = parseCSV(text);
+  if (rows.length < 2) { toast("الـ CSV فاضي أو ناقص"); return; }
+  const headers = rows[0];
+  csv = {headers, data: rows.slice(1), map: guessMap(headers)};
+  document.getElementById("csv-platform").value = csv.map.platform >= 0 ? "auto" : detectPlatform(headers);
+  document.getElementById("csv-date").value = today();
+  document.getElementById("csv-info").textContent = `${headers.length} عمود · ${csv.data.length} سطر`;
+  const opts = i => `<option value="-1">— تجاهل —</option>` + headers.map((h, j) => `<option value="${j}"${i === j ? " selected" : ""}>${esc(h)}</option>`).join("");
+  document.getElementById("csv-map-table").innerHTML = "<thead><tr><th>الخانة</th><th>العمود في الملف</th><th>أول قيمة</th></tr></thead><tbody>" +
+    Object.keys(GUESS).map(f => `<tr><td>${FIELD_LABEL[f]}</td><td><select data-field="${f}">${opts(csv.map[f])}</select></td><td class="hint sample" data-sample="${f}"></td></tr>`).join("") + "</tbody>";
+  document.querySelectorAll("#csv-map-table select").forEach(s => s.onchange = () => { csv.map[s.dataset.field] = +s.value; previewCSV(); });
+  document.getElementById("csv-map").style.display = "";
+  previewCSV();
+}
+function csvRows() {
+  if (!csv) return [];
+  const pSel = document.getElementById("csv-platform").value, dDef = document.getElementById("csv-date").value;
+  const get = (row, f) => csv.map[f] >= 0 ? (row[csv.map[f]] || "") : "";
+  const out = [];
+  for (const row of csv.data) {
+    const ad = get(row, "ad");
+    if (!ad || /^(total|totals|الإجمالي|المجموع|results? from)/i.test(ad)) continue;
+    const r = {ad, date: csv.map.date >= 0 ? parseDate(get(row, "date")) : dDef};
+    r.platform = pSel !== "auto" ? pSel : (guessPlatform(get(row, "platform")) || detectPlatform(csv.headers));
+    ["reel", "objective", "audience"].forEach(f => r[f] = get(row, f));
+    NUM.forEach(f => r[f] = toNum(get(row, f)));
+    if (NUM.every(f => r[f] == null)) continue;
+    r.note = "من CSV";
+    out.push(clean(r));
+  }
+  return out;
+}
+function previewCSV() {
+  document.querySelectorAll("[data-sample]").forEach(td => {
+    const i = csv.map[td.dataset.sample];
+    td.textContent = i >= 0 && csv.data[0] ? (csv.data[0][i] || "") : "";
+  });
+  const rows = csvRows();
+  const cols = ["date", "platform", "ad", "reel", "spent", "views", "visits", "followers", "saves", "shares"];
+  document.getElementById("csv-preview").innerHTML = "<thead><tr>" + cols.map(c => `<th>${FIELD_LABEL[c]}</th>`).join("") + "</tr></thead><tbody>" +
+    rows.slice(0, 6).map(r => "<tr>" + cols.map(c => `<td class="${NUM.includes(c) ? "n" : ""}">${c === "platform" ? PLATFORMS[r.platform].name : NUM.includes(c) ? fmtN(r[c], c === "spent" ? 2 : 0) : esc(r[c] || "—")}</td>`).join("") + "</tr>").join("") + "</tbody>";
+  document.getElementById("csv-count").textContent = `${rows.length} سطر هيتضاف`;
+}
+document.getElementById("csv-read").onclick = readCSV;
+document.getElementById("csv-platform").onchange = () => csv && previewCSV();
+document.getElementById("csv-date").onchange = () => csv && previewCSV();
+document.getElementById("csv-file").onchange = e => {
+  const f = e.target.files[0];
+  if (!f) return;
+  const rd = new FileReader();
+  rd.onload = () => {
+    let t = rd.result;
+    if (t.indexOf("\u0000") >= 0) {  // UTF-16 export
+      const rd2 = new FileReader();
+      rd2.onload = () => { document.getElementById("csv-text").value = rd2.result; readCSV(); };
+      rd2.readAsText(f, "utf-16le");
+      return;
+    }
+    document.getElementById("csv-text").value = t; readCSV();
+  };
+  rd.readAsText(f, "utf-8");
+  e.target.value = "";
+};
+document.getElementById("csv-import").onclick = () => {
+  const rows = csvRows();
+  if (!rows.length) { toast("مفيش سطور تتضاف — راجع ربط الأعمدة"); return; }
+  rows.forEach(r => { r.id = uid(); state.rows.push(r); });
+  save(); render(); toast(`اتضاف ${rows.length} سطر ✔`);
+  showTab("ads");
+};
+
+// ---------------------------------------------------------------- backup
+document.getElementById("btn-export").onclick = () => {
+  const blob = new Blob([JSON.stringify({app: "wasem-ads-dashboard", version: 1, exported: new Date().toISOString(), mode: state.mode, rows: state.rows}, null, 1)], {type: "application/json"});
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = `ads-dashboard-backup-${today()}.json`;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+  toast("اتعمل ملف الباك أب ✔");
+};
+document.getElementById("json-file").onchange = e => {
+  const f = e.target.files[0];
+  if (!f) return;
+  const rd = new FileReader();
+  rd.onload = () => {
+    try {
+      const d = JSON.parse(rd.result);
+      if (!d || !Array.isArray(d.rows)) throw new Error("bad file");
+      const replace = confirm(`الملف فيه ${d.rows.length} سجل.\n\nOK = استبدل كل البيانات الحالية بيه\nCancel = ضيفه على الموجود (من غير تكرار)`);
+      const rows = d.rows.map(clean);
+      if (replace) { state.rows = rows; if (d.mode) state.mode = d.mode === "period" ? "period" : "cumulative"; }
+      else { const ids = new Set(state.rows.map(r => r.id)); rows.forEach(r => { if (!ids.has(r.id)) state.rows.push(r); }); }
+      save(); render(); toast("اتستورد ✔");
+    } catch (err) { alert("الملف ده مش باك أب صحيح من اللوحة."); }
+  };
+  rd.readAsText(f, "utf-8");
+  e.target.value = "";
+};
+document.getElementById("btn-clear").onclick = () => {
+  if (confirm("أمسح كل البيانات؟ مش هينفع ترجع غير من باك أب.") && confirm("متأكد؟")) {
+    state.rows = []; save(); render(); toast("اتمسح كله");
+  }
+};
+
+// ---------------------------------------------------------------- tabs, toast, boot
+function showTab(id) {
+  document.querySelectorAll("nav button").forEach(b => b.classList.toggle("on", b.dataset.tab === id));
+  document.querySelectorAll("section").forEach(s => s.classList.toggle("on", s.id === id));
+  try { sessionStorage.setItem(KEY + "-tab", id); } catch (e) {}
+  window.scrollTo(0, 0);
+}
+document.querySelectorAll("nav button").forEach(b => b.onclick = () => showTab(b.dataset.tab));
+let toastT;
+function toast(msg) {
+  const t = document.getElementById("toast");
+  t.textContent = msg; t.classList.add("show");
+  clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove("show"), 2200);
+}
+try { if (!localStorage.getItem(KEY)) save(); } catch (e) {}  // keep the seed so the first visit is remembered
+resetForm();
+render();
+try { const t = sessionStorage.getItem(KEY + "-tab"); if (t && document.getElementById(t)) showTab(t); } catch (e) {}
+</script>
+</body>
+</html>

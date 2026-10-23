@@ -1,0 +1,6 @@
+history/
+recordings/
+settings.json
+error.log
+__pycache__/
+python/

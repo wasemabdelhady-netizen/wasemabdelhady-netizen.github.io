@@ -255,7 +255,7 @@ class App:
         self.start_cb = self.combo(c, r, "أول نوتة / القرار", "start", [(n, n) for n in notes]); r += 1
         self.bot_cb = self.combo(c, r, "أوطى نوتة", "bottom", [(n, n) for n in notes]); r += 1
         self.top_cb = self.combo(c, r, "أعلى نوتة", "top", [(n, n) for n in notes]); r += 1
-        ttk.Label(c, text="السقف G4 — مفيش تمرين بيعدّيه", style="Hint.TLabel").grid(row=r, column=0, columnspan=2, sticky="w"); r += 1
+        ttk.Label(c, text="مفيش تمرين بيطلع فوق G4", style="Hint.TLabel").grid(row=r, column=0, columnspan=2, sticky="w"); r += 1
         self.dir_cb = self.combo(c, r, "الاتجاه", "dir", DIRS); r += 1
         self.tmp_cb = self.combo(c, r, "السرعة", "tempo", TEMPO); r += 1
         self.ref_cb = self.combo(c, r, "صوت المرجع", "ref", REFS); r += 1
@@ -295,13 +295,13 @@ class App:
         self.meter = tk.Canvas(sf, width=140, height=10, bg="#1a1714", highlightthickness=0)
         self.meter.pack(side="right")
         ttk.Label(sf, text="mic", style="Hint.TLabel").pack(side="right", padx=4)
-        self.cv = tk.Canvas(m, bg=PANEL, highlightthickness=0, width=760, height=380)
+        self.cv = tk.Canvas(m, bg=PANEL, highlightthickness=0, width=600, height=360)
         self.cv.grid(row=2, column=0, sticky="nsew")
 
         sc = ttk.LabelFrame(m, text="  نتيجة الجلسة  ", padding=10)
         sc.grid(row=3, column=0, sticky="ew", pady=(10, 0))
         self.score_lb = {}
-        for i, (k, cap) in enumerate((("avg", "متوسط الانحراف"), ("intune", "مظبوط ±15c"), ("near", "قريب ±35c"),
+        for i, (k, cap) in enumerate((("avg", "متوسط الانحراف"), ("intune", "مظبوط (أخضر)"), ("near", "قريب (أخضر وأصفر)"),
                                       ("hi", "أعلى نوتة ثابتة"), ("lo", "أوطى نوتة ثابتة"))):
             sc.columnconfigure(i, weight=1)
             ttk.Label(sc, text=cap, style="Hint.TLabel").grid(row=0, column=i, sticky="w")
@@ -718,7 +718,7 @@ def main():
     if len(sys.argv) >= 3 and sys.argv[1] == "--autotest":  # used by the Windows CI test
         autotest = sys.argv[2]
     root = tk.Tk()
-    root.minsize(1100, 720)
+    root.minsize(980, 680)
     App(root, autotest)
     root.mainloop()
 

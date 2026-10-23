@@ -147,7 +147,7 @@ def main():
 
     for label, master, st in (("wav+stem", wav_master, stem), ("mp3 only", mp3_master, None)):
         an = engine.Analysis(master, st, log=lambda m: print("     " + m))
-        ok(abs(an.bpm - BPM) < 1.5, "%s: BPM %.2f (expected %.0f)" % (label, an.bpm, BPM))
+        ok(abs(an.bpm - BPM) < 0.5, "%s: BPM %.2f (expected %.0f)" % (label, an.bpm, BPM))
         for c in chorus:
             dist = np.min(np.abs(an.bars - c))
             ok(dist < 0.07, "%s: bar line at chorus %.2f (off by %.3f s)" % (label, c, dist))

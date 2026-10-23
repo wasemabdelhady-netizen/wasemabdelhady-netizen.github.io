@@ -179,9 +179,9 @@ class Analysis:
         onset = onset_envelope(mag)
         self.bpm = estimate_tempo(onset, self.fps)
         beats = track_beats(onset, self.fps, self.bpm)
-        if len(beats) >= 8:  # slope of beat times = tempo, finer than one hop
-            slope = np.polyfit(np.arange(len(beats)), beats / self.fps, 1)[0]
-            self.bpm = 60.0 / slope
+        if len(beats) >= 16:  # median 8-beat span: finer than one hop, robust to stray beats
+            bt = beats / self.fps
+            self.bpm = 60.0 / float(np.median((bt[8:] - bt[:-8]) / 8.0))
         self.beat_frames = beats
         self.beats = beats / self.fps
 

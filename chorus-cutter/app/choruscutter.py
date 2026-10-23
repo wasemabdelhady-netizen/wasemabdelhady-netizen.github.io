@@ -133,7 +133,7 @@ class App:
         lf = ttk.Frame(f)
         lf.grid(row=r, column=1, sticky="w", padx=6)
         for L in engine.LENGTHS:
-            ttk.Radiobutton(lf, text="%d ث" % L, value=L, variable=self.length,
+            ttk.Radiobutton(lf, text="%ds" % L, value=L, variable=self.length,
                             command=self.refresh).pack(side="left", padx=(0, 14))
         self.go = ttk.Button(f, text="دوّر  ▶", style="Go.TButton", command=self.analyze)
         self.go.grid(row=r, column=2, sticky="ew", pady=6)
@@ -162,13 +162,13 @@ class App:
         bar.grid(row=r, column=0, columnspan=3, sticky="ew", pady=(6, 0))
         self.btns = []
         for txt, cmd in (("▶ شغّل", self.play), ("■ وقّف", self.player.stop),
-                         ("−0.5 ث", lambda: self.nudge(-0.5)), ("+0.5 ث", lambda: self.nudge(0.5))):
+                         ("−0.5s", lambda: self.nudge(-0.5)), ("+0.5s", lambda: self.nudge(0.5))):
             b = ttk.Button(bar, text=txt, command=cmd)
             b.pack(side="left", padx=(0, 6))
             self.btns.append(b)
         self.exp = ttk.Button(bar, text="Export  ⬇", style="Go.TButton", command=self.export)
         self.exp.pack(side="right")
-        self.vchk = ttk.Checkbutton(bar, text="صدّر نفس الحتة من الـ vocal كمان", variable=self.vocal_export)
+        self.vchk = ttk.Checkbutton(bar, text="صدّر كمان نفس الحتة من الـ stem", variable=self.vocal_export)
         self.vchk.pack(side="right", padx=10)
         r += 1
         ttk.Button(f, text="افتح output", command=lambda: open_path(engine.OUTPUT_DIR)).grid(
@@ -273,7 +273,8 @@ class App:
             self.tree.insert("", "end", iid=str(i), values=self.row(i))
         self.sync()
         if self.cands:
-            self.status.configure(text=self.summary + "  —  دوس على أي سطر يشتغل")
+            an = self.analysis
+            self.status.configure(text="BPM %.1f   |   %d bars   |   vocal: %s   |   دوس على أي سطر يشتغل" % (an.bpm, len(an.bars) - 1, "stem" if an.vocal_source == "stem" else "estimate"))
         else:
             self.status.configure(text="الأغنية أقصر من طول الكليب")
 
@@ -283,7 +284,7 @@ class App:
         off = self.offsets.get(i, 0.0)
         mark = "" if not off else (" (%+.1f)" % off)
         return (i + 1, engine.fmt_time(s) + mark, engine.fmt_time(s + c["length"]),
-                "%.1f ث" % c["length"], "%.0f" % c["score"], "%.0f" % c["loud"],
+                "%.1fs" % c["length"], "%.0f" % c["score"], "%.0f" % c["loud"],
                 "%.0f" % c["vocal"], "%.0f" % c["repeat"])
 
     def selected(self):
@@ -306,7 +307,7 @@ class App:
         try:
             path = engine.preview(self.v["master"].get().strip(), *w)
             self.player.play(path)
-            self.result.configure(text="بيشتغل: %s → %s" % (engine.fmt_time(w[0]), engine.fmt_time(w[0] + w[1])))
+            self.result.configure(text="بيشتغل من %s لحد %s" % (engine.fmt_time(w[0]), engine.fmt_time(w[0] + w[1])))
         except Exception as ex:
             self.result.configure(text="مش قادر أشغّل الصوت: %s" % str(ex)[:120])
 

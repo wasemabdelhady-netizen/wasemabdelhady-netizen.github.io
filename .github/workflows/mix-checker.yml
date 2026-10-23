@@ -1,0 +1,114 @@
+name: MixChecker (Windows bundle)
+
+on:
+  push:
+    paths:
+      - "mix-checker/**"
+      - ".github/workflows/mix-checker.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: mix-checker
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update -qq && sudo apt-get install -y -qq msitools
+      - run: python3 mix-checker/build/build_bundle.py dist
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MixChecker-windows
+          path: dist/MixChecker-windows.zip
+          retention-days: 14
+
+  test-windows:
+    needs: build
+    runs-on: windows-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: MixChecker-windows
+      - name: Unzip into an Arabic path
+        shell: pwsh
+        run: |
+          $root = "C:\تجربة مكس"
+          New-Item -ItemType Directory -Force $root | Out-Null
+          Expand-Archive MixChecker-windows.zip -DestinationPath $root
+          Get-ChildItem "$root\MixChecker"
+      - name: Python, tkinter, scipy, Matchering
+        shell: pwsh
+        run: |
+          $py = "C:\تجربة مكس\MixChecker\python\python.exe"
+          & $py -c "import sys; sys.path.insert(0, r'C:\تجربة مكس\MixChecker\app\vendor'); import tkinter, numpy, scipy, soundfile, statsmodels, matchering, resampy; print(sys.version); print('numpy', numpy.__version__, 'scipy', scipy.__version__, 'soundfile', soundfile.__version__, 'statsmodels', statsmodels.__version__, 'matchering', matchering.__version__, 'resampy', resampy.__version__)"
+          if ($LASTEXITCODE) { exit 1 }
+      - name: Analysis, report and quick master on sample audio (Arabic names, Arabic temp folder)
+        shell: pwsh
+        run: |
+          $env:PYTHONIOENCODING = "utf-8"
+          $py = "C:\تجربة مكس\MixChecker\python\python.exe"
+          & $py "C:\تجربة مكس\MixChecker\app\selftest.py" "C:\تجربة مكس\عينة"
+          if ($LASTEXITCODE) { exit 1 }
+      - name: START.bat — GUI analyzes, writes the report and makes a quick master
+        shell: pwsh
+        run: |
+          $dir = "C:\تجربة مكس\MixChecker"
+          $s = "C:\تجربة مكس\عينة"
+          $out = "$s\gui-report.json"
+          New-Item -ItemType Directory -Force "C:\تجربة مكس\مؤقت" | Out-Null
+          $env:TEMP = "C:\تجربة مكس\مؤقت"; $env:TMP = $env:TEMP
+          $argline = "/c `"`"$dir\START.bat`" --autotest `"$out`" `"$s\مكس تجربة.wav`" `"$s\ريفرنس 1.wav`" `"$s\ريفرنس ٢.mp3`"`""
+          Start-Process -FilePath "cmd.exe" -ArgumentList $argline -WorkingDirectory $dir
+          $t = 0
+          while (-not (Test-Path $out) -and $t -lt 300) { Start-Sleep -Seconds 3; $t += 3 }
+          Start-Sleep -Seconds 2
+          Add-Type -AssemblyName System.Windows.Forms, System.Drawing
+          $b = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
+          $bmp = New-Object System.Drawing.Bitmap $b.Width, $b.Height
+          [System.Drawing.Graphics]::FromImage($bmp).CopyFromScreen($b.Location, [System.Drawing.Point]::Empty, $b.Size)
+          $bmp.Save("$s\gui.png")
+          Stop-Process -Name pythonw -Force -ErrorAction SilentlyContinue
+          if (Test-Path "$dir\error.log") { Get-Content "$dir\error.log" -Encoding utf8; exit 1 }
+          if (-not (Test-Path $out)) { Write-Error "GUI produced no result"; exit 1 }
+          $r = Get-Content $out -Encoding utf8 -Raw | ConvertFrom-Json
+          $r | ConvertTo-Json -Depth 4
+          if ($r.error) { exit 1 }
+          if (-not (Test-Path $r.report)) { Write-Error "report missing"; exit 1 }
+          if ($r.files.Count -ne 2) { Write-Error "expected WAV + MP3"; exit 1 }
+          foreach ($f in $r.files) { if (-not (Test-Path $f)) { Write-Error "missing $f"; exit 1 } }
+          Get-ChildItem $s
+      - name: Collect results
+        if: always()
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force results | Out-Null
+          Copy-Item "C:\تجربة مكس\عينة\gui.png", "C:\تجربة مكس\عينة\gui-report.json", "C:\تجربة مكس\عينة\*.html", "C:\تجربة مكس\عينة\*QUICK MASTER*.mp3" results -ErrorAction SilentlyContinue
+          Compress-Archive -Path results\* -DestinationPath selftest-results.zip -Force
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: selftest-results
+          path: selftest-results.zip
+
+  release:
+    needs: [build, test-windows]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          tag=mix-checker
+          gh release delete "$tag" -y --cleanup-tag -R "$GITHUB_REPOSITORY" || true
+          gh release create "$tag" -R "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+            --title "MixChecker (Windows)" --prerelease \
+            --notes "حمّل MixChecker-windows.zip، فكّه، ودوس START.bat. التفاصيل في README.md جوه الفولدر." \
+            MixChecker-windows/MixChecker-windows.zip selftest-results/selftest-results.zip

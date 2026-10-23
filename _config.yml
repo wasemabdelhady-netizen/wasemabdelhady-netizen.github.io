@@ -5,3 +5,4 @@ exclude:
   - reel-maker
   - chorus-cutter
   - ads-dashboard
+  - mix-checker

@@ -738,6 +738,10 @@ document.getElementById("csv-import").onclick = () => {
   const rows = csvRows();
   if (!rows.length) { toast("مفيش سطور تتضاف — راجع ربط الأعمدة"); return; }
   rows.forEach(r => { r.id = uid(); state.rows.push(r); });
+  csv = null;
+  document.getElementById("csv-map").style.display = "none";
+  document.getElementById("csv-text").value = "";
+  document.getElementById("csv-info").textContent = "";
   save(); render(); toast(`اتضاف ${rows.length} سطر ✔`);
   showTab("ads");
 };

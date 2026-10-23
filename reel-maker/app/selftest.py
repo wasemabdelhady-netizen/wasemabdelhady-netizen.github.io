@@ -6,6 +6,7 @@
 import os
 import sys
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))  # embedded Python skips it
 import engine
 from PIL import Image, features
 

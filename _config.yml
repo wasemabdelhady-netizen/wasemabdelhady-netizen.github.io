@@ -2,3 +2,4 @@
 exclude:
   - tools
   - CLAUDE.md
+  - release-kit

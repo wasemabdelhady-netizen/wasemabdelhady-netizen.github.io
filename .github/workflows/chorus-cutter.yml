@@ -75,6 +75,9 @@ jobs:
           $r | ConvertTo-Json -Depth 4
           if ($r.error) { exit 1 }
           if ($r.files.Count -ne 4) { Write-Error "expected 4 exported files"; exit 1 }
+          if ([math]::Abs($r.start - $r.typed) -gt 0.01) { Write-Error "typed start not applied"; exit 1 }
+          if ($r.song -ne "أغنية تجربة") { Write-Error "song name not cleaned"; exit 1 }
+          if (-not $r.cands[0][3]) { Write-Error "best clip does not start on a sung word"; exit 1 }
           foreach ($f in $r.files) { if (-not (Test-Path $f)) { Write-Error "missing $f"; exit 1 } }
           Get-ChildItem "$dir\output"
       - name: Collect results
@@ -95,14 +98,16 @@ jobs:
     needs: [build, test-windows]
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
       - name: Publish release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           tag=chorus-cutter
+          ver=$(grep -oP '^VERSION = "\K[^"]+' chorus-cutter/app/engine.py)
           gh release delete "$tag" -y --cleanup-tag -R "$GITHUB_REPOSITORY" || true
           gh release create "$tag" -R "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
-            --title "ChorusCutter (Windows)" --prerelease \
+            --title "ChorusCutter v$ver (Windows)" --prerelease \
             --notes "حمّل ChorusCutter-windows.zip، فكّه، ودوس START.bat. التفاصيل في README.md جوه الفولدر." \
             ChorusCutter-windows/ChorusCutter-windows.zip selftest-results/selftest-results.zip

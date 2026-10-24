@@ -1,4 +1,5 @@
-"""ChorusCutter engine: find the best bar-aligned clip of a song for reels.
+"""ChorusCutter engine: find the best clip of a song for reels — starting on the
+first sung word and ending after the last one (bar grid as fallback).
 
     python engine.py master.wav [--stem vocals.wav] [--len 20] [--export 1]
 """
@@ -11,6 +12,7 @@ import tempfile
 
 import numpy as np
 
+VERSION = "1.1"
 SR = 22050          # analysis rate
 HOP = 512           # ~23 ms
 NFFT = 2048
@@ -18,6 +20,12 @@ LENGTHS = (10, 15, 20, 30)
 FADE_IN = 0.03
 FADE_OUT = 1.5
 WEIGHTS = {"loud": 0.25, "vocal": 0.30, "repeat": 0.35, "entry": 0.10}
+PRE_ROLL = 0.15     # window starts this much before the first word
+TAIL = 0.45         # kept after the last word (breath / reverb)
+PHRASE_FADE = 0.45  # fade-out when the clip ends on a phrase (starts at the last word's end)
+PHRASE_GAP = 0.35   # silences shorter than this stay inside a phrase (gaps between words)
+MAX_STRETCH = 1.25  # a clip may grow up to +25% to finish a phrase
+SNAP_BARS = 2       # look for a phrase start within ±2 bars of the bar-grid start
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUTPUT_DIR = os.path.join(ROOT, "output")
@@ -122,9 +130,11 @@ def track_beats(onset, fps, bpm, tightness=100.0):
         beats.append(t)
         t = back[t]
     beats = np.array(beats[::-1])
-    # drop leading beats in silence
-    thr = 0.05 * np.median(onset[beats]) if len(beats) else 0
-    return beats[onset[beats] > thr] if len(beats) > 8 else beats
+    # drop leading beats in silence (only leading ones: holes later would break the 4-beat bar count)
+    if len(beats) <= 8:
+        return beats
+    strong = onset[beats] > 0.05 * np.median(onset[beats])
+    return beats[int(np.argmax(strong)):]
 
 
 def chroma(mag, freqs):
@@ -148,6 +158,40 @@ def rank01(v):
     if hi - lo < 1e-9:
         return np.full_like(v, 0.5)
     return np.clip((v - lo) / (hi - lo), 0, 1)
+
+
+def smooth(x, n):
+    if n <= 1:
+        return x
+    return np.convolve(x, np.ones(n) / n, mode="same")
+
+
+def running(x, n, fn):
+    """Running max / min over n frames (centred)."""
+    h = n // 2
+    return fn(np.lib.stride_tricks.sliding_window_view(np.pad(x, h, mode="edge"), 2 * h + 1), axis=1)
+
+
+def band_flux(mag, sel):
+    """Onset strength in one frequency band (positive log-spectral flux), ~unit std."""
+    logm = np.log1p(100 * mag[:, sel])
+    flux = np.concatenate([[0], np.maximum(0, np.diff(logm, axis=0)).mean(axis=1)])
+    return flux / (flux.std() + 1e-9)
+
+
+def segments(x, lo, hi, fps, min_gap=PHRASE_GAP, min_len=0.25):
+    """Hysteresis: runs above `lo` that reach `hi` somewhere; short gaps merged. Returns [(t0, t1)]."""
+    above = np.concatenate([[0], (x > lo).astype(np.int8), [0]])
+    d = np.diff(above)
+    runs = [(a, b) for a, b in zip(np.where(d == 1)[0], np.where(d == -1)[0])
+            if (np.asarray(x[a:b]) > hi).any()]
+    out = []
+    for a, b in runs:
+        if out and (a - out[-1][1]) / fps < min_gap:
+            out[-1] = (out[-1][0], b)
+        else:
+            out.append((a, b))
+    return [(a / fps, b / fps) for a, b in out if (b - a) / fps >= min_len]
 
 
 # ----------------------------------------------------------------------------- analysis
@@ -202,6 +246,14 @@ class Analysis:
             ref = np.percentile(ve, 95)
             self.vocal = np.clip((ve - (ref - 30)) / 18.0, 0, 1)
             self.vocal_source = "stem"
+            # phrases: sung where the stem is within ~28 dB of its loud parts (and clear of its noise floor)
+            act = smooth(ve, 3)
+            floor = np.percentile(ve, 10)
+            hi = max(ref - 24, floor + 12)
+            lo = max(ref - 32, floor + 6)
+            vm = np.pad(vm[:n], ((0, nfr - n), (0, 0)))
+            flux = band_flux(vm, band(freqs, 150, 5000))
+            self.phrases = self.find_phrases(act, lo, hi, flux)
         else:
             # estimate: centred energy in the voice band, relative to the mix
             vb = band(freqs, 250, 3500)
@@ -216,6 +268,14 @@ class Analysis:
             raw = np.convolve(raw, np.ones(9) / 9, mode="same")
             self.vocal = rank01(raw)
             self.vocal_source = "estimate"
+            # phrases: vocal-band energy relative to its local peak (±3 s) + vocal-band onsets
+            act = smooth(centre * ratio * (1 - flat), 5)
+            close = int(0.3 * self.fps)  # bridge short dips (drum hits) inside a sung note
+            act = running(running(act, close, np.max), close, np.min)
+            rel = act / (running(act, int(6 * self.fps), np.max) + 1e-12)
+            rel[act < 0.05 * np.percentile(act, 95)] = 0  # true silence
+            flux = band_flux(mag, vb)
+            self.phrases = self.find_phrases(rel, 0.3, 0.5, flux, gap=0.5)  # rougher: merge a bit more
 
         self.progress(0.7, "بدوّر على المازورة والكورَس…")
         self.chroma_f = chroma(mag, freqs)
@@ -223,9 +283,20 @@ class Analysis:
         self.bar_dur = float(np.median(np.diff(self.bars))) if len(self.bars) > 2 else 2.0
         self.bar_features()
         self.progress(0.95, "")
-        self.log("BPM ≈ %.1f — المازورة %.2f ث — %d مازورة — الفوكال: %s"
-                 % (self.bpm, self.bar_dur, len(self.bars) - 1,
+        self.log("BPM ≈ %.1f — المازورة %.2f ث — %d مازورة — %d جملة غُنا — الفوكال: %s"
+                 % (self.bpm, self.bar_dur, len(self.bars) - 1, len(self.phrases),
                     "من الـ stem" if self.vocal_source == "stem" else "تقدير من الماستر"))
+
+    def find_phrases(self, act, lo, hi, flux, gap=PHRASE_GAP):
+        """Sung phrases [(start, end)]: start pinned to the strongest vocal onset near the rise."""
+        out = []
+        for a, b in segments(act, lo, hi, self.fps, min_gap=gap):
+            i0 = max(0, int((a - 0.12) * self.fps))
+            i1 = min(len(flux), int((a + 0.12) * self.fps) + 1)
+            if i1 > i0 and flux[i0:i1].max() > 1.0:
+                a = min(a, (i0 + int(np.argmax(flux[i0:i1]))) / self.fps)
+            out.append((float(a), float(b)))
+        return out
 
     def find_bars(self, onset, mag, freqs):
         beats = self.beat_frames
@@ -234,6 +305,7 @@ class Analysis:
             return np.arange(0, self.duration, 2.0)
         low = (mag[:, band(freqs, 30, 150)] ** 2).sum(axis=1)
         low = low / (low.max() + 1e-12)
+        low = running(low, 5, np.max)  # kick peak within ±2 frames of the tracked beat
         # downbeat: phase (of 4) with strongest kick energy and harmonic change
         ch = self.chroma_f
         best, ph = -1, 0
@@ -316,15 +388,63 @@ class Analysis:
             i = int(R[o, 0])
             if any(abs(i - c["bar"]) < k * 0.5 for c in chosen):
                 continue  # overlaps a better one by more than half
-            start = float(self.bars[i])
-            end = float(self.bars[i + k])
-            chosen.append({"bar": i, "bars": k, "start": start, "end": end,
-                           "length": end - start, "score": float(score[o]) * 100,
-                           "loud": float(loud_n[o]) * 100, "vocal": float(voc_n[o]) * 100,
-                           "repeat": float(rep_n[o]) * 100})
+            w = self.window(i, k, length)
+            if any(abs(w["start"] - c["start"]) < 0.5 * min(w["length"], c["length"]) for c in chosen):
+                continue  # snapped onto the same phrase as a better one
+            w.update({"bar": i, "bars": k, "score": float(score[o]) * 100,
+                      "loud": float(loud_n[o]) * 100, "vocal": float(voc_n[o]) * 100,
+                      "repeat": float(rep_n[o]) * 100})
+            chosen.append(w)
             if len(chosen) == top:
                 break
         return chosen
+
+    def window(self, i, k, length):
+        """Clip for bar-grid start i (k bars): start on the first sung word, end after a phrase."""
+        bar_start, bar_end = float(self.bars[i]), float(self.bars[i + k])
+        ph = self.phrases
+        near = [p for p in ph if abs(p[0] - bar_start) <= SNAP_BARS * self.bar_dur + 1e-6]
+        if not near:  # nothing sung nearby: bar grid as before
+            return {"start": bar_start, "end": bar_end, "length": bar_end - bar_start,
+                    "fade": FADE_OUT, "on_word": False, "on_phrase_end": False, "target": length}
+        p0 = min(near, key=lambda p: abs(p[0] - bar_start))
+        before = [p[1] for p in ph if p[1] <= p0[0]]
+        start = max(0.0, p0[0] - PRE_ROLL, before[-1] if before else 0.0)
+        end, on_end = self.phrase_end(start, length)
+        return {"start": start, "end": end, "length": end - start, "fade": PHRASE_FADE if on_end else FADE_OUT,
+                "on_word": True, "on_phrase_end": on_end, "target": length}
+
+    def phrase_end(self, start, length):
+        """End for a clip starting at `start`: never inside a phrase if it can be helped.
+        Returns (end, ends_right_after_a_phrase)."""
+        ph = [p for p in self.phrases if p[1] > start]
+        dur = self.duration
+        nominal = min(start + length, dur)
+
+        def after(p):  # end of phrase p plus the tail, but clear of the next phrase
+            nxt = [q[0] for q in ph if q[0] > p[1]]
+            return min(p[1] + TAIL, (nxt[0] - 0.05) if nxt else dur, dur)
+
+        inside = [p for p in ph if p[0] < nominal < after(p)]
+        if inside:
+            p = inside[0]
+            if after(p) <= start + length * MAX_STRETCH + 1e-6:
+                return after(p), True  # finish the phrase (up to +25%)
+            prev = [q for q in ph if q[1] <= p[0] and q[1] > start]
+            if prev and after(prev[-1]) - start >= 0.6 * length:
+                return after(prev[-1]), True  # stop after the phrase before it
+            # one very long phrase: no clean cut — nearest bar line
+            b = self.bars[(self.bars > start + 0.5 * length) & (self.bars <= dur)]
+            return (float(b[np.argmin(np.abs(b - nominal))]) if len(b) else nominal), False
+        # nominal end falls between phrases: keep the length, prefer a bar line inside the same gap
+        prev = [q for q in ph if q[1] <= nominal]
+        nxt = [q[0] for q in ph if q[0] >= nominal]
+        lo = after(prev[-1]) if prev and prev[-1][1] > start else start + 0.5 * length
+        hi = min((nxt[0] - 0.05) if nxt else dur, dur, start + length * MAX_STRETCH)
+        b = self.bars[(self.bars >= lo) & (self.bars <= hi) & (np.abs(self.bars - nominal) <= self.bar_dur / 2)]
+        if len(b):
+            return float(b[np.argmin(np.abs(b - nominal))]), False
+        return max(nominal, lo) if lo <= hi else nominal, False
 
 
 # ----------------------------------------------------------------------------- export
@@ -352,27 +472,65 @@ def safe_name(s):
     return s[:80] or "song"
 
 
+ARTIST = r"(?:wass?em(?:[\s._-]*abd[\s._-]*el[\s._-]*hady)?|abd[\s._-]*el[\s._-]*hady|وسيم(?:\s*عبد\s*الهادي)?)"
+TAG = (r"(?:re-?)?master(?:ed)?|final|mix(?:ed|down)?|bounce|ماستر|فاينل|ميكس|نهائي"
+       r"|v(?:er(?:sion)?)?[\s._]*\d+(?:[._]\d+)*")
+SEP = r"[\s\-–—_.,|+]"
+
+
 def song_name_from(path):
+    """Clean song name from a file name: no artist, no Master / Final / Mix / version tags.
+    "Wassem- Mesh Le3ba (Master).wav" -> "Mesh Le3ba"."""
     base = os.path.splitext(os.path.basename(path))[0]
-    base = re.sub(r"(?i)[ _\-]*(master(ed)?|final|mix|v\d+)$", "", base).strip(" _-")
-    return base or "song"
+    s = base.replace("_", " ")
+    # bracketed tags / artist / bare numbers: "(Master)", "[Final Mix v2]", "(2)"
+    word = r"(?:%s|%s|\d+)" % (TAG, ARTIST)
+    s = re.sub(r"(?i)[(\[{]\s*%s(?:%s+%s)*\s*[)\]}]" % (word, SEP, word), " ", s)
+    # artist at the start or end: "Wasem- ", "Wassem Abdelhady - ", " - Wasem"
+    s = re.sub(r"(?i)^\s*%s\s*(?:[-–—_:|.]+|\s(?=\S))\s*" % ARTIST, "", s)
+    s = re.sub(r"(?i)\s*(?:[-–—_|]+|\bft\.?|\bfeat\.?)\s*%s\s*$" % ARTIST, "", s)
+    # trailing tags, repeatedly: "Song - Final Master v3", "Song - 2"
+    tail = re.compile(r"(?i)(?:%s+|^)(?:%s)(?:%s*\d+)?\s*$|%s*[-–—_]\s*\d+\s*$" % (SEP, TAG, SEP, SEP))
+    prev = None
+    while prev != s:
+        prev = s
+        s = tail.sub("", s).strip(" -–—_.,|+")
+    s = re.sub(r"\s{2,}", " ", s).strip()
+    return s or base.strip() or "song"
 
 
-def clip_filter(start, length):
-    fo = max(0.0, length - FADE_OUT)
+AR_DIGITS = str.maketrans("٠١٢٣٤٥٦٧٨٩٫،", "0123456789..")
+
+
+def parse_time(text):
+    """'0:43.3' / '43.3' / '1:02' -> seconds (Arabic digits ok). ValueError if it can't be read."""
+    t = text.strip().translate(AR_DIGITS).replace(",", ".").replace("؛", ":").replace(" ", "")
+    m = re.fullmatch(r"(?:(\d+):)?(\d+(?:\.\d*)?|\.\d+)", t)
+    if not m:
+        raise ValueError(text)
+    mins = int(m.group(1)) if m.group(1) else 0
+    secs = float(m.group(2))
+    if m.group(1) and secs >= 60:
+        raise ValueError(text)
+    return 60 * mins + secs
+
+
+def clip_filter(start, length, fade=FADE_OUT):
+    fade = min(fade, length / 2)
+    fo = max(0.0, length - fade)
     return ("atrim=start=%.4f:duration=%.4f,asetpts=PTS-STARTPTS,"
             "afade=t=in:st=0:d=%.3f,afade=t=out:st=%.4f:d=%.3f"
-            % (start, length, FADE_IN, fo, FADE_OUT))
+            % (start, length, FADE_IN, fo, fade))
 
 
-def export(src, start, length, song, out_dir=None, suffix=""):
+def export(src, start, length, song, out_dir=None, suffix="", fade=FADE_OUT):
     """WAV 24-bit 48k + MP3 320k. Returns the two paths."""
     out_dir = out_dir or OUTPUT_DIR
     os.makedirs(out_dir, exist_ok=True)
     name = "%s - %s (%ds)%s" % (safe_name(song), fmt_file_time(start), int(round(length)), suffix)
     wav = os.path.join(out_dir, name + ".wav")
     mp3 = os.path.join(out_dir, name + ".mp3")
-    af = clip_filter(start, length) + ",aresample=48000:resampler=soxr:precision=28"
+    af = clip_filter(start, length, fade) + ",aresample=48000:resampler=soxr:precision=28"
     for path, codec in ((wav, ["-c:a", "pcm_s24le"]),
                         (mp3, ["-c:a", "libmp3lame", "-b:a", "320k"])):
         r = run_ffmpeg(["-y", "-i", src, "-vn", "-map_metadata", "-1", "-af", af,
@@ -380,17 +538,17 @@ def export(src, start, length, song, out_dir=None, suffix=""):
         if r.returncode != 0:
             # soxr may be missing in some builds — fall back to the default resampler
             r = run_ffmpeg(["-y", "-i", src, "-vn", "-map_metadata", "-1",
-                            "-af", clip_filter(start, length), "-ar", "48000"] + codec + [path])
+                            "-af", clip_filter(start, length, fade), "-ar", "48000"] + codec + [path])
         if r.returncode != 0:
             raise RuntimeError("ffmpeg وقع في التصدير:\n" + r.stderr.decode("utf-8", "replace")[-600:])
     return wav, mp3
 
 
-def preview(src, start, length):
+def preview(src, start, length, fade=FADE_OUT):
     """16-bit WAV in temp for playback."""
     fd, path = tempfile.mkstemp(prefix="chorus_", suffix=".wav")
     os.close(fd)
-    r = run_ffmpeg(["-y", "-i", src, "-vn", "-af", clip_filter(start, length),
+    r = run_ffmpeg(["-y", "-i", src, "-vn", "-af", clip_filter(start, length, fade),
                     "-ar", "44100", "-ac", "2", "-c:a", "pcm_s16le", path])
     if r.returncode != 0:
         raise RuntimeError(r.stderr.decode("utf-8", "replace")[-400:])
@@ -408,12 +566,13 @@ def main(argv=None):
     an = Analysis(a.master, a.stem)
     cands = an.candidates(a.len)
     for n, c in enumerate(cands, 1):
-        print("%d. %s → %s  (%.1fs, %d bars)  score %.0f  [loud %.0f · vocal %.0f · repeat %.0f]"
-              % (n, fmt_time(c["start"]), fmt_time(c["end"]), c["length"], c["bars"],
+        print("%d. %s → %s  (%.1fs%s)  score %.0f  [loud %.0f · vocal %.0f · repeat %.0f]"
+              % (n, fmt_time(c["start"]), fmt_time(c["end"]), c["length"],
+                 ", first word" if c["on_word"] else ", bar grid",
                  c["score"], c["loud"], c["vocal"], c["repeat"]))
     if a.export:
         c = cands[a.export - 1]
-        print(export(a.master, c["start"], c["length"], song_name_from(a.master)))
+        print(export(a.master, c["start"], c["length"], song_name_from(a.master), fade=c["fade"]))
 
 
 if __name__ == "__main__":

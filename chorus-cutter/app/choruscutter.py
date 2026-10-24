@@ -77,7 +77,7 @@ class App:
     def __init__(self, root, autotest=None):
         self.root = root
         self.autotest = autotest
-        root.title("ChorusCutter — وسيم")
+        root.title("ChorusCutter %s — وسيم" % engine.VERSION)
         root.configure(bg="#0a0a0a")
         self.q = queue.Queue()
         self.analysis = None
@@ -118,7 +118,7 @@ class App:
         ttk.Label(f, text="ChorusCutter  ·  أحسن حتة للريل", style="Title.TLabel").grid(
             row=0, column=0, columnspan=3, sticky="w", pady=(0, 10))
 
-        self.v = {k: tk.StringVar() for k in ("master", "stem", "song")}
+        self.v = {k: tk.StringVar() for k in ("master", "stem", "song", "start")}
         self.length = tk.IntVar(value=20)
         self.vocal_export = tk.BooleanVar(value=False)
         r = 1
@@ -146,15 +146,15 @@ class App:
         self.status.grid(row=r, column=0, columnspan=3, sticky="w")
         r += 1
 
-        cols = ("n", "start", "end", "len", "score", "loud", "vocal", "repeat")
-        heads = ("#", "من", "لحد", "الطول", "السكور", "علو الصوت", "غُنا", "تكرار")
-        widths = (36, 80, 80, 70, 80, 90, 70, 70)
+        cols = ("n", "start", "end", "len", "on", "score", "loud", "vocal", "repeat")
+        heads = ("#", "من", "لحد", "الطول", "بتبدأ على", "السكور", "علو الصوت", "غُنا", "تكرار")
+        widths = (36, 90, 80, 80, 90, 70, 80, 60, 60)
         self.tree = ttk.Treeview(f, columns=cols, show="headings", height=5, selectmode="browse")
         for c, h, w in zip(cols, heads, widths):
             self.tree.heading(c, text=h)
             self.tree.column(c, width=w, anchor="center")
         self.tree.grid(row=r, column=0, columnspan=3, sticky="nsew", pady=(8, 4))
-        self.tree.bind("<<TreeviewSelect>>", lambda e: self.play())
+        self.tree.bind("<<TreeviewSelect>>", lambda e: (self.show_start(), self.play()))
         f.rowconfigure(r, weight=1)
         r += 1
 
@@ -166,6 +166,15 @@ class App:
             b = ttk.Button(bar, text=txt, command=cmd)
             b.pack(side="left", padx=(0, 6))
             self.btns.append(b)
+        # type the start directly (e.g. 0:43.3) — same length
+        ttk.Label(bar, text="  البداية:").pack(side="left")
+        self.start_e = ttk.Entry(bar, textvariable=self.v["start"], width=8, justify="center")
+        self.start_e.pack(side="left", padx=(4, 4))
+        self.start_e.bind("<Return>", lambda e: self.set_start())
+        self.start_e.bind("<KP_Enter>", lambda e: self.set_start())
+        b = ttk.Button(bar, text="روح ▶", command=self.set_start)
+        b.pack(side="left")
+        self.btns.append(b)
         self.exp = ttk.Button(bar, text="Export  ⬇", style="Go.TButton", command=self.export)
         self.exp.pack(side="right")
         self.vchk = ttk.Checkbutton(bar, text="صدّر كمان نفس الحتة من الـ stem", variable=self.vocal_export)
@@ -206,7 +215,7 @@ class App:
 
     def sync(self):
         has = bool(self.cands) and not self.busy
-        for b in self.btns + [self.exp]:
+        for b in self.btns + [self.exp, self.start_e]:
             b.configure(state="normal" if has else "disabled")
         stem_ok = bool(self.v["stem"].get().strip())
         self.vchk.configure(state="normal" if stem_ok else "disabled")
@@ -274,7 +283,8 @@ class App:
         self.sync()
         if self.cands:
             an = self.analysis
-            self.status.configure(text="BPM %.1f   |   %d bars   |   vocal: %s   |   دوس على أي سطر يشتغل" % (an.bpm, len(an.bars) - 1, "stem" if an.vocal_source == "stem" else "estimate"))
+            self.status.configure(text="BPM %.1f   |   %d bars   |   %d جملة غُنا   |   vocal: %s   |   دوس على أي سطر يشتغل" % (
+                an.bpm, len(an.bars) - 1, len(an.phrases), "stem" if an.vocal_source == "stem" else "estimate"))
         else:
             self.status.configure(text="الأغنية أقصر من طول الكليب")
 
@@ -283,8 +293,11 @@ class App:
         s = c["start"] + self.offsets.get(i, 0.0)
         off = self.offsets.get(i, 0.0)
         mark = "" if not off else (" (%+.1f)" % off)
-        return (i + 1, engine.fmt_time(s) + mark, engine.fmt_time(s + c["length"]),
-                "%.1fs" % c["length"], "%.0f" % c["score"], "%.0f" % c["loud"],
+        L = c["length"]
+        # real length; ↑ = grew past the chosen length to finish a phrase
+        ln = "%.1fs%s" % (L, " ↑" if L > c["target"] + 0.05 else "")
+        return (i + 1, engine.fmt_time(s) + mark, engine.fmt_time(s + L), ln,
+                "أول كلمة" if c["on_word"] else "مازورة", "%.0f" % c["score"], "%.0f" % c["loud"],
                 "%.0f" % c["vocal"], "%.0f" % c["repeat"])
 
     def selected(self):
@@ -300,12 +313,34 @@ class App:
         length = min(c["length"], self.analysis.duration - start)
         return i, (start, length)
 
+    def show_start(self):
+        i, w = self.selected()
+        if w is not None:
+            self.v["start"].set(engine.fmt_time(w[0]))
+
+    def set_start(self):
+        """Typed start (0:43.3 / 43.3): same length, clamped to the song."""
+        i, w = self.selected()
+        if w is None:
+            return
+        try:
+            t = engine.parse_time(self.v["start"].get())
+        except ValueError:
+            self.result.configure(text="اكتب البداية كده: 0:43.3  أو  43.3")
+            return
+        c = self.cands[i]
+        t = max(0.0, min(t, self.analysis.duration - c["length"]))
+        self.offsets[i] = t - c["start"]
+        self.tree.item(str(i), values=self.row(i))
+        self.v["start"].set(engine.fmt_time(t))
+        self.play()
+
     def play(self):
         i, w = self.selected()
         if w is None:
             return
         try:
-            path = engine.preview(self.v["master"].get().strip(), *w)
+            path = engine.preview(self.v["master"].get().strip(), *w, fade=self.cands[i]["fade"])
             self.player.play(path)
             self.result.configure(text="بيشتغل من %s لحد %s" % (engine.fmt_time(w[0]), engine.fmt_time(w[0] + w[1])))
         except Exception as ex:
@@ -320,6 +355,7 @@ class App:
         off = max(-c["start"], min(off, self.analysis.duration - c["start"] - c["length"]))
         self.offsets[i] = round(off, 2)
         self.tree.item(str(i), values=self.row(i))
+        self.show_start()
         self.play()
 
     def export(self):
@@ -328,9 +364,10 @@ class App:
             return
         song = self.v["song"].get().strip() or engine.song_name_from(self.v["master"].get())
         try:
-            out = list(engine.export(self.v["master"].get().strip(), w[0], w[1], song))
+            fade = self.cands[i]["fade"]
+            out = list(engine.export(self.v["master"].get().strip(), w[0], w[1], song, fade=fade))
             if self.vocal_export.get() and self.v["stem"].get().strip():
-                out += engine.export(self.v["stem"].get().strip(), w[0], w[1], song, suffix=" - vocal")
+                out += engine.export(self.v["stem"].get().strip(), w[0], w[1], song, suffix=" - vocal", fade=fade)
         except Exception as ex:
             crash_log(traceback.format_exc())
             messagebox.showerror("ChorusCutter", str(ex)[:1500])
@@ -339,8 +376,10 @@ class App:
         self.result.configure(text="اتصدّر ✔  " + "  |  ".join(n for n in names if n.endswith(".wav")))
         if self.autotest:
             with open(self.autotest["report"], "w", encoding="utf-8") as fh:
-                json.dump({"bpm": self.analysis.bpm, "files": out,
-                           "cands": [[c["start"], c["length"], c["score"]] for c in self.cands]},
+                json.dump({"bpm": self.analysis.bpm, "files": out, "start": w[0], "length": w[1],
+                           "song": song, "typed": self.autotest.get("typed"),
+                           "phrases": len(self.analysis.phrases),
+                           "cands": [[c["start"], c["length"], c["score"], c["on_word"]] for c in self.cands]},
                           fh, ensure_ascii=False)
             return
         if messagebox.askyesno("ChorusCutter", "اتصدّر ✔\n" + "\n".join(names) + "\n\nأفتح فولدر output؟"):
@@ -364,6 +403,11 @@ class App:
                     if self.autotest and self.cands:
                         self.tree.selection_set("0")
                         self.nudge(0.5)
+                        # then type a start like a user would: first word + 1.3 s, written m:ss.s
+                        typed = round(self.cands[0]["start"] + 1.3, 1)
+                        self.autotest["typed"] = typed
+                        self.v["start"].set("%d:%04.1f" % (typed // 60, typed % 60))
+                        self.set_start()
                         self.vocal_export.set(bool(self.v["stem"].get()))
                         self.export()
                 elif m[0] == "err":

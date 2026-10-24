@@ -25,12 +25,12 @@ try:
     from tkinter import filedialog, messagebox, ttk
     import engine
     import export
+    import player
 except Exception:
     crash_log(traceback.format_exc())
     raise
 
 if sys.platform == "win32":
-    import winsound
     try:
         import ctypes
         ctypes.windll.shcore.SetProcessDpiAwareness(1)
@@ -39,37 +39,6 @@ if sys.platform == "win32":
 
 AUDIO_TYPES = [("Audio", "*.wav *.mp3 *.flac *.aif *.aiff *.m4a *.ogg"), ("All", "*.*")]
 KEYS = [(t, sc) for sc in ("major", "minor") for t in range(12)]
-
-
-class Player:
-    def __init__(self):
-        self.proc, self.file = None, None
-
-    def play(self, path):
-        self.stop()
-        self.file = path
-        if sys.platform == "win32":
-            winsound.PlaySound(path, winsound.SND_FILENAME | winsound.SND_ASYNC | winsound.SND_NODEFAULT)
-            return
-        for cmd in (["ffplay", "-nodisp", "-autoexit", "-loglevel", "quiet", path], ["paplay", path], ["aplay", "-q", path]):
-            try:
-                self.proc = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                return
-            except OSError:
-                continue
-
-    def stop(self):
-        if sys.platform == "win32":
-            winsound.PlaySound(None, 0)
-        elif self.proc:
-            self.proc.kill()
-            self.proc = None
-        old, self.file = self.file, None
-        if old:
-            try:
-                os.remove(old)
-            except OSError:
-                pass
 
 
 def open_path(p):
@@ -85,12 +54,13 @@ def open_path(p):
 class App:
     def __init__(self, root, autotest=None):
         self.root, self.autotest = root, autotest
-        root.title("HarmonyHelper — وسيم")
+        root.title("HarmonyHelper %s — وسيم" % engine.VERSION)
         root.configure(bg="#0a0a0a")
         self.q = queue.Queue()
         self.song = None
         self.busy = False
-        self.player = Player()
+        self.player = player.Player()
+        self._vol_job = None
         st = ttk.Style()
         try:
             st.theme_use("clam")
@@ -114,6 +84,7 @@ class App:
         st.configure("Treeview", background="#141210", fieldbackground="#141210", foreground="#f5efe6", rowheight=24)
         st.configure("Treeview.Heading", background="#2a241d", foreground="#e0a458")
         st.configure("Horizontal.TProgressbar", background="#e0a458", troughcolor="#1a1714")
+        st.configure("Horizontal.TScale", background="#e0a458", troughcolor="#1a1714")
         st.configure("TLabelframe", background="#0a0a0a", bordercolor="#2b2620")
         st.configure("TLabelframe.Label", background="#0a0a0a", foreground="#e0a458", font=("Segoe UI", 10, "bold"))
 
@@ -182,8 +153,21 @@ class App:
             b = ttk.Button(cell, text="▶", width=3, command=lambda k=k: self.preview(k))
             b.pack(side="left", padx=6)
             self.preview_btns.append(b)
+        # live volumes while a line plays — song at 0% = the line alone
+        vol = ttk.Frame(hf)
+        vol.grid(row=4, column=0, columnspan=2, sticky="ew", pady=(8, 0))
+        self.vol = {}
+        for key, lab in (("song", "علو الأغنية"), ("line", "علو الخط")):
+            ttk.Label(vol, text=lab + ":").pack(side="left")
+            var = tk.DoubleVar(value=100)
+            pct = ttk.Label(vol, text="100%", width=5)
+            ttk.Scale(vol, from_=0, to=100, variable=var, length=170).pack(side="left", padx=6)
+            pct.pack(side="left", padx=(0, 24))
+            var.trace_add("write", lambda *a, var=var, pct=pct: (pct.configure(text="%d%%" % round(var.get())),
+                                                                 self.volume_changed()))
+            self.vol[key] = var
         ctl = ttk.Frame(hf)
-        ctl.grid(row=4, column=0, columnspan=2, sticky="ew", pady=(8, 0))
+        ctl.grid(row=5, column=0, columnspan=2, sticky="ew", pady=(8, 0))
         ttk.Label(ctl, text="نقل الهارموني (نص تون):").pack(side="left")
         self.tr = tk.IntVar(value=0)
         ttk.Spinbox(ctl, from_=-12, to=12, textvariable=self.tr, width=5).pack(side="left", padx=6)
@@ -284,13 +268,25 @@ class App:
         except ValueError:
             start = 0.0
         try:
-            path = export.render_preview(self.song, k, start, 30.0, self.tr.get() if k not in ("chords", "melody") else 0)
-            self.player.play(path)
+            bed, line, limit = export.preview_parts(self.song, k, start, 30.0,
+                                                    self.tr.get() if k not in ("chords", "melody") else 0)
+            self.player.play(bed, line, limit, *self.volumes())
             self.result.configure(text="بيشتغل: %s من %s" % (k, engine.fmt_time(start)))
         except Exception as ex:
             crash_log(traceback.format_exc())
             self.result.configure(text="مش قادر أشغّل: %s" % str(ex)[:100])
         return True
+
+    def volumes(self):
+        return self.vol["song"].get() / 100.0, self.vol["line"].get() / 100.0
+
+    def volume_changed(self):
+        if self.player.backend == "waveout":
+            self.player.set_volume(*self.volumes())  # next ~46 ms chunk
+            return
+        if self._vol_job:  # WAV fallback restarts playback: wait until the slider rests
+            self.root.after_cancel(self._vol_job)
+        self._vol_job = self.root.after(250, lambda: self.player.set_volume(*self.volumes()))
 
     def chosen(self):
         return [k for k, _, _, _ in engine.LINES if self.chk[k].get()]
@@ -339,10 +335,19 @@ class App:
         for k, *_ in engine.LINES:
             self.chk[k].set(True)
         self.v["start"].set("10")
-        self.preview("third_up")
+        self.vol["song"].set(0)
+        self.vol["line"].set(50)
+        self.preview("third_up")  # starts with the line alone at 50%
+        self.vol["song"].set(30)  # then the song comes in while it plays
+        self.root.after(600, self.finish_autotest)
+
+    def finish_autotest(self):
+        mix = self.player.mix
         res = self.export()
         s = self.song
         self.write_auto({"error": None, "bpm": s.bpm, "key": engine.key_name(s.tonic, s.scale), "notes": len(s.notes),
+                         "song_vol": round(self.vol["song"].get()), "line_vol": round(self.vol["line"].get()),
+                         "mix_gains": [mix.song_vol, mix.line_vol] if mix else None, "player": self.player.backend,
                          "maqam": [(q["bar_from"], q["pitches"]) for q in s.quarter_sections],
                          "chords": [c["name"] for c in s.chords][:12], "folder": res[0] if res else None,
                          "files": res[1] if res else []})

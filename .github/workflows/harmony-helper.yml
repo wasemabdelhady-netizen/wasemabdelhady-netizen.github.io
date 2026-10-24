@@ -82,6 +82,9 @@ jobs:
           if ($r.error) { exit 1 }
           if ($r.bpm -ne 96 -or $r.key -ne "D minor") { Write-Error "wrong BPM/key"; exit 1 }
           if ($r.files.Count -ne 10) { Write-Error "expected 10 files"; exit 1 }
+          if ($r.song_vol -ne 30 -or $r.line_vol -ne 50) { Write-Error "volume sliders not set"; exit 1 }
+          if ([math]::Abs($r.mix_gains[0] - 0.3) -gt 0.001 -or [math]::Abs($r.mix_gains[1] - 0.5) -gt 0.001) { Write-Error "volume not applied while playing"; exit 1 }
+          Write-Host "playback backend: $($r.player)"
           foreach ($f in $r.files) { if (-not (Test-Path $f)) { Write-Error "missing $f"; exit 1 } }
           Get-ChildItem $r.folder
       - name: Collect results
@@ -102,14 +105,16 @@ jobs:
     needs: [build, test-windows]
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
       - name: Publish release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           tag=harmony-helper
+          ver=$(grep -oP '^VERSION = "\K[^"]+' harmony-helper/app/engine.py)
           gh release delete "$tag" -y --cleanup-tag -R "$GITHUB_REPOSITORY" || true
           gh release create "$tag" -R "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
-            --title "HarmonyHelper (Windows)" --prerelease \
+            --title "HarmonyHelper v$ver (Windows)" --prerelease \
             --notes "حمّل HarmonyHelper-windows.zip، فكّه، ودوس START.bat. التفاصيل وإزاي تدخل الـ MIDI الـ DAW في README.md جوه الفولدر." \
             HarmonyHelper-windows/HarmonyHelper-windows.zip selftest-results/selftest-results.zip

@@ -7,11 +7,14 @@ import os
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))  # embedded Python skips it
+import wave
+
 import numpy as np
 
 import engine
 import export
 import midi
+import player
 import testsong
 
 
@@ -95,6 +98,52 @@ def main():
     wav = export.render_preview(s, "third_up", start=10, length=8)
     ok(os.path.getsize(wav) > 8 * 44100 * 4 * 0.9, "preview WAV (song + harmony line)")
     os.remove(wav)
+
+    # volumes: «علو الأغنية» / «علو الخط»
+    bed, line, limit = export.preview_parts(s, "third_up", start=10, length=8)
+    pcm = lambda b: np.frombuffer(b, "<i2").reshape(-1, 2) / 32767.0
+    full = pcm(player.LiveMix(bed, line, limit).render())
+    ok(0.5 < np.abs(full).max() <= 0.951, "100%% / 100%%: peak %.3f (≤ 0.95)" % np.abs(full).max())
+    alone = pcm(player.LiveMix(bed, line, limit, song_vol=0.0).render())
+    quiet = np.abs(line) < 1e-9
+    ok(quiet.any() and np.abs(alone[quiet]).max() < 1e-4, "song 0%: silent where the line is silent — the line alone")
+    ok(np.abs(alone[:, 1] - line * limit).max() < 1e-3 and np.abs(alone[:, 0] - 0.8 * line * limit).max() < 1e-3,
+       "song 0%: output = the line")
+    song_only = pcm(player.LiveMix(bed, line, limit, line_vol=0.0).render())
+    ok(np.abs(song_only - bed * limit).max() < 1e-3, "line 0%: output = the song")
+    half = pcm(player.LiveMix(bed, line, limit, song_vol=0.5, line_vol=0.25).render())
+    ok(np.abs(half[:, 1] - (0.5 * bed[:, 1] + 0.25 * line) * limit).max() < 1e-3, "50% / 25% mix")
+    # live: change the song volume in the middle of playback
+    m = player.LiveMix(bed, line, limit)
+    first = pcm(b"".join(m.next_chunk() for _ in range(20)))
+    m.song_vol = 0.0
+    ramp = pcm(m.next_chunk())
+    after = pcm(b"".join(m.next_chunk() for _ in range(20)))
+    n0, n1 = 20 * player.CHUNK, 21 * player.CHUNK
+    ok(np.abs(first - full[:n0]).max() < 1e-3, "live: plays at 100% before the change")
+    ok(np.abs(after[:, 1] - line[n1:n1 + len(after)] * limit).max() < 1e-3, "live: song gone one chunk (~46 ms) after the change")
+    step = np.abs(np.diff(ramp[:, 1])).max()
+    ok(step < 0.1, "live: the change ramps over the chunk (largest step %.4f) — no click" % step)
+    wav = export.render_preview(s, "third_up", start=10, length=8, song_vol=0.0, line_vol=1.0)
+    with open(wav, "rb") as fh:
+        wr = wave.open(fh)
+        x = pcm(wr.readframes(wr.getnframes()))
+    os.remove(wav)
+    ok(len(x) == len(line) and np.abs(x[quiet]).max() < 1e-4, "preview WAV at song 0%: the line alone")
+    if sys.platform == "win32":
+        import ctypes
+        ok(ctypes.sizeof(player.WAVEFORMATEX) == 18 and ctypes.sizeof(player.WAVEHDR) == 48, "waveOut structs (18 / 48 bytes)")
+        try:
+            pl = player.Player()
+            pl.play(bed[:44100], line[:44100], limit)
+            backend = pl.backend
+            pl.set_volume(0.0, 1.0)
+            import time
+            time.sleep(1.3)
+            pl.stop()
+            print("     playback backend: %s" % backend)
+        except Exception as ex:  # no audio device on the CI machine is fine
+            print("     playback not testable here: %s" % ex)
 
     # without a stem, and an MP3
     s2 = engine.Song(mp3_p, None)

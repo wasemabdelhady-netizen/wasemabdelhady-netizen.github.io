@@ -10,6 +10,7 @@ import numpy as np
 
 import engine
 import midi
+import player
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 LINE_FILE = {"third_up": "3rd above", "third_down": "3rd below", "sixth_down": "6th below",
@@ -212,8 +213,9 @@ def _voice(f, dur, kind):
     return y * env
 
 
-def render_preview(song, what, start=0.0, length=30.0, transpose=0):
-    """what: 'melody', 'chords' or a harmony key. Song in the middle, the line on top. Returns a temp WAV."""
+def preview_parts(song, what, start=0.0, length=30.0, transpose=0):
+    """what: 'melody', 'chords' or a harmony key. Returns (bed (n, 2), line (n,), limit) for player.LiveMix:
+    out = (song_vol·bed + line_vol·[0.8, 1]·line) · limit — at 100% / 100% it peaks at 0.95."""
     start = max(0.0, min(start, song.duration - 1))
     length = min(length, song.duration - start)
     r = engine.run_ffmpeg(["-ss", "%.3f" % start, "-t", "%.3f" % length, "-i", song.path, "-vn", "-ac", "2",
@@ -239,10 +241,15 @@ def render_preview(song, what, start=0.0, length=30.0, transpose=0):
     if np.abs(line).max() > 0:
         line *= 0.35 / np.abs(line).max()
     peak = max(np.abs(bed).max(), 1e-9)
-    out = 0.55 * bed / peak
-    out[:, 0] += line * 0.8
-    out[:, 1] += line
-    out /= max(1.0, np.abs(out).max() / 0.95)
+    bed = 0.55 * bed / peak
+    full = bed + np.stack([0.8 * line, line], 1)
+    return bed, line, 1.0 / max(1.0, np.abs(full).max() / 0.95)
+
+
+def render_preview(song, what, start=0.0, length=30.0, transpose=0, song_vol=1.0, line_vol=1.0):
+    """Song in the middle, the line on top, at the given volumes (0..1). Returns a temp WAV."""
+    bed, line, limit = preview_parts(song, what, start, length, transpose)
+    pcm = player.LiveMix(bed, line, limit, song_vol, line_vol).render()
     fd, path = tempfile.mkstemp(prefix="harmony_", suffix=".wav")
     os.close(fd)
     with open(path, "wb") as fh:
@@ -250,6 +257,6 @@ def render_preview(song, what, start=0.0, length=30.0, transpose=0):
         w.setnchannels(2)
         w.setsampwidth(2)
         w.setframerate(PSR)
-        w.writeframes((np.clip(out, -1, 1) * 32767).astype("<i2").tobytes())
+        w.writeframes(pcm)
         w.close()
     return path

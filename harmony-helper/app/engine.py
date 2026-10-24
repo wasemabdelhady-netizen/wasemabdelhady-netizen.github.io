@@ -13,6 +13,7 @@ import sys
 import numpy as np
 from scipy.signal import butter, medfilt, sosfiltfilt
 
+VERSION = "1.1"
 SR = 22050
 HOP = 512            # analysis hop for beats/chroma (~23 ms)
 NFFT = 4096

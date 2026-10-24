@@ -122,7 +122,9 @@ jobs:
         run: |
           tag=reel-maker
           gh release delete "$tag" -y --cleanup-tag -R "$GITHUB_REPOSITORY" || true
-          gh release create "$tag" -R "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+          # tag on main: the token may not tag a commit that changes workflow files;
+          # the zip itself is built from this run's commit ($GITHUB_SHA)
+          gh release create "$tag" -R "$GITHUB_REPOSITORY" --target main \
             --title "Reel Maker v2.0 (Windows)" --prerelease \
             --notes "v2.0 — جديد: وضع «أوتوماتيك» (أغنية + كليب + كلمات من غير توقيت ← ريلز كتير مرة واحدة). حمّل ReelMaker-windows.zip، فكّه، ودوس START.bat. أول مرة في الأوتوماتيك البرنامج بينزّل موديل السمع (~500 ميجا) — محتاج نت مرة واحدة. التفاصيل في README.md جوه الفولدر." \
             ReelMaker-windows/ReelMaker-windows.zip selftest-results/selftest-results.zip

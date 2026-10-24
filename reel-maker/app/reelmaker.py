@@ -10,6 +10,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 ROOT = os.path.dirname(HERE)
 SETTINGS = os.path.join(ROOT, "settings.json")
+VERSION = "v2.0"
 
 
 def crash_log(text):
@@ -41,9 +42,9 @@ TEXT_TYPES = [("Text", "*.txt *.lrc"), ("All", "*.*")]
 
 
 class App:
-    def __init__(self, root):
+    def __init__(self, root, container=None):
         self.root = root
-        root.title("Reel Maker — وسيم")
+        root.title("Reel Maker %s — وسيم" % VERSION)
         root.configure(bg="#0a0a0a")
         self.q = queue.Queue()
         self.cancel = threading.Event()
@@ -69,7 +70,12 @@ class App:
         st.map("Go.TButton", background=[("active", "#f0bb70"), ("disabled", "#5a4a35")])
         st.configure("Horizontal.TProgressbar", background="#e0a458", troughcolor="#1a1714")
 
-        f = ttk.Frame(root, padding=16)
+        st.configure("TNotebook", background="#0a0a0a", borderwidth=0)
+        st.configure("TNotebook.Tab", background="#1a1714", foreground="#9a8f80", padding=(18, 7),
+                     font=("Segoe UI", 11, "bold"))
+        st.map("TNotebook.Tab", background=[("selected", "#e0a458")], foreground=[("selected", "#0a0a0a")])
+
+        f = ttk.Frame(container or root, padding=16)
         f.pack(fill="both", expand=True)
         f.columnconfigure(1, weight=1)
         ttk.Label(f, text="Reel Maker  ·  ريلز الكلمات", style="Title.TLabel").grid(
@@ -176,11 +182,9 @@ class App:
                 var.set(data[k])
 
     def save(self):
-        try:
-            with open(SETTINGS, "w", encoding="utf-8") as fh:
-                json.dump({k: v.get() for k, v in self.v.items()}, fh, ensure_ascii=False, indent=1)
-        except OSError:
-            pass
+        data = read_settings()
+        data.update({k: v.get() for k, v in self.v.items()})
+        write_settings(data)
 
     # -- run -----------------------------------------------------------------------
     def start(self):
@@ -253,6 +257,23 @@ class App:
         self.root.destroy()
 
 
+def read_settings():
+    try:
+        with open(SETTINGS, encoding="utf-8") as fh:
+            data = json.load(fh)
+        return data if isinstance(data, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def write_settings(data):
+    try:
+        with open(SETTINGS, "w", encoding="utf-8") as fh:
+            json.dump(data, fh, ensure_ascii=False, indent=1)
+    except OSError:
+        pass
+
+
 def pick(fonts, preferred, contains):
     if preferred in fonts:
         return preferred
@@ -273,9 +294,36 @@ def open_path(p):
 
 
 def main():
+    autotest = None
+    if "--autotest-auto" in sys.argv:  # CI: drive the auto tab from a JSON file
+        with open(sys.argv[sys.argv.index("--autotest-auto") + 1], encoding="utf-8") as fh:
+            autotest = json.load(fh)
     root = tk.Tk()
-    root.minsize(760, 640)
-    App(root)
+    root.report_callback_exception = lambda *exc: crash_log("".join(traceback.format_exception(*exc)))
+    root.minsize(860, 760)
+    nb = ttk.Notebook(root)
+    nb.pack(fill="both", expand=True)
+    manual = ttk.Frame(nb)
+    auto = ttk.Frame(nb)
+    nb.add(manual, text="  يدوي  ")
+    nb.add(auto, text="  أوتوماتيك  ")
+    app = App(root, manual)
+    settings = read_settings()
+
+    def save_auto():
+        data = read_settings()
+        data["auto"] = settings.get("auto", {})
+        data["tab"] = nb.index("current")
+        write_settings(data)
+    import autotab
+    tab = autotab.AutoTab(root, auto, settings, save_auto, crash_log, open_path, autotest)
+    if autotest or settings.get("tab") == 1:
+        nb.select(1)
+
+    def close():
+        tab.close()
+        app.close()  # saves the manual fields (keeps the auto ones) and closes
+    root.protocol("WM_DELETE_WINDOW", close)
     root.mainloop()
 
 

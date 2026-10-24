@@ -544,7 +544,8 @@ def safe_name(s):
 class Job:
     def __init__(self, bg, audio, lyrics, song="", hook="", closing=DEFAULT_CLOSING,
                  lyric_font="ArefRuqaa-Bold.ttf", hook_font="Alexandria.ttf",
-                 start=None, end=None, out_dir=None, progress=None, log=None, cancel=None):
+                 start=None, end=None, out_dir=None, progress=None, log=None, cancel=None,
+                 lines=None, out_name=None, thumb_text=None, bg_crop=None):
         self.bg, self.audio, self.lyrics = bg, audio, lyrics
         self.song, self.hook = song.strip(), hook.strip()
         self.closing = closing.strip() if closing is not None else DEFAULT_CLOSING
@@ -554,6 +555,11 @@ class Job:
         self.progress = progress or (lambda f, msg="": None)
         self.log = log or (lambda m: print(m, flush=True))
         self.cancel = cancel or threading.Event()
+        # auto mode: ready-made [(start, end, text, word_starts|None)] in the audio's timeline,
+        # a fixed output name (no extension) and the thumbnail text
+        self.preset, self.out_name, self.thumb_text = lines, out_name, thumb_text
+        self.word_starts = {}
+        self.cover = (bg_crop + "," + COVER) if bg_crop else COVER  # bg_crop: drop letterbox bars
 
     # -- timing ---------------------------------------------------------------
     def plan(self):
@@ -582,7 +588,17 @@ class Job:
         timed = [e for e in entries if e[0] is not None]
         lyric_end = self.dur - CLOSING_SECONDS - 0.15 if self.closing else self.dur - 0.3
         lines = []
-        if timed and len(timed) == len(entries):
+        if self.preset is not None:
+            for item in self.preset:
+                ts, te, txt = item[0] - s, min(item[1] - s, lyric_end), item[2]
+                ws = item[3] if len(item) > 3 else None
+                if not txt or te - max(ts, 0.0) < 0.5:
+                    continue
+                if ws:
+                    self.word_starts[len(lines)] = [w - s for w in ws]
+                lines.append((max(ts, 0.0), te, txt))
+            self.log("الكلمات: %d سطر (توقيت أوتوماتيك)" % len(lines))
+        elif timed and len(timed) == len(entries):
             # times are in the audio file's timeline
             for i, (t, txt) in enumerate(entries):
                 if not txt:
@@ -623,9 +639,17 @@ class Job:
     # -- graphics -------------------------------------------------------------
     def build(self):
         self.blocks = []
-        for ts, te, txt in self.lines:
+        for k, (ts, te, txt) in enumerate(self.lines):
             blk = TextBlock(txt, self.lyric_font, 86, LYRIC_Y, weight=700, gold=True)
             n = len(blk.items)
+            ws = self.word_starts.get(k)
+            if ws and len(ws) == n:  # sung word times (auto mode)
+                starts, last = [], ts
+                for w in ws:
+                    last = min(max(w, last), max(ts, te - 0.5))
+                    starts.append(last)
+                self.blocks.append((ts, te, blk, starts))
+                continue
             span = min(max((te - ts) * 0.6, 0.22 * n), 0.55 * n, (te - ts) - 0.5)
             span = max(span, 0.0)
             lens = [max(len(HARAKAT_RE.sub("", clean_word(w))), 1) for w in blk.words]
@@ -708,6 +732,9 @@ class Job:
     # -- output ---------------------------------------------------------------
     def names(self):
         os.makedirs(self.out_dir, exist_ok=True)
+        if self.out_name:
+            p = os.path.join(self.out_dir, self.out_name)
+            return p + ".mp4", p + ".jpg"
         base = safe_name(self.song or os.path.splitext(os.path.basename(self.audio))[0])
         stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
         return (os.path.join(self.out_dir, "%s_reel_%s.mp4" % (base, stamp)),
@@ -726,7 +753,7 @@ class Job:
               "[a]trim=start=%.3f,setpts=PTS-STARTPTS[a2];"
               "[b]trim=end=%.3f,setpts=PTS-STARTPTS[b2];"
               "[a2][b2]xfade=transition=fade:duration=%.3f:offset=%.3f,format=yuv420p[v]"
-              % (FPS, COVER, X, X, X, D - 2 * X))
+              % (FPS, self.cover, X, X, X, D - 2 * X))
         self.log("الخلفية أقصر من الصوت — بعمل loop بـ crossfade %.1f ث…" % X)
         r = run_ffmpeg(["-y", "-i", self.bg, "-filter_complex", fc, "-map", "[v]", "-an",
                         "-c:v", "libx264", "-preset", "veryfast", "-crf", "12", unit])
@@ -737,13 +764,14 @@ class Job:
         t = min(1.0, self.bg_dur / 2)
         tmp_png = path + ".bg.png"
         r = run_ffmpeg(["-y", "-ss", "%.2f" % t, "-i", src, "-frames:v", "1", "-vf",
-                        "%s,%s,eq=brightness=-0.06" % (COVER, GRADE), tmp_png])
+                        "%s,%s,eq=brightness=-0.06" % (self.cover, GRADE), tmp_png])
         self.check(r, "الصورة المصغّرة")
         with open(tmp_png, "rb") as fh:
             bg = Image.open(io.BytesIO(fh.read())).convert("RGBA")
         os.remove(tmp_png)
-        if self.hook:
-            blk = TextBlock(self.hook, self.hook_font, 118, H * 0.47, weight=800, gold=True,
+        text = self.hook if self.thumb_text is None else self.thumb_text.strip()
+        if text:
+            blk = TextBlock(text, self.hook_font, 118, H * 0.47, weight=800, gold=True,
                             maxw=920, max_rows=4, line_gap=1.08, shadow=0.75)
             blk.draw(bg, [1] * len(blk.items), [0] * len(blk.items))
         bg.alpha_composite(self.sign, (0, int(SIGN_Y - self.sign.height / 2)))
@@ -774,7 +802,7 @@ class Job:
             fc = ("[0:v]fps=%d,%s,%s,tpad=stop_mode=clone:stop_duration=2[bg];"
                   "[2:v]format=rgba[ov];"
                   "[bg][ov]overlay=0:0:format=gbrp:eof_action=pass,format=yuv420p[v];"
-                  "[1:a]%s,aresample=48000[a]" % (FPS, COVER, GRADE, afilt))
+                  "[1:a]%s,aresample=48000[a]" % (FPS, self.cover if src == self.bg else COVER, GRADE, afilt))
             cmd = [ffmpeg_bin(), "-hide_banner", "-nostdin", "-y", "-loglevel", "error",
                    "-stream_loop", "-1", "-t", "%.3f" % (self.dur + 1.0), "-i", src,
                    "-ss", "%.3f" % self.a0, "-t", "%.3f" % self.dur, "-i", self.audio,

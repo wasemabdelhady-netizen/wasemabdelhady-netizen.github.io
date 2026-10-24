@@ -52,6 +52,19 @@ jobs:
           $py = "C:\تجربة ريلز\ReelMaker\python\python.exe"
           & $py "C:\تجربة ريلز\ReelMaker\app\selftest.py" "C:\تجربة ريلز\عينة"
           if ($LASTEXITCODE) { exit 1 }
+      - name: Auto-mode packages (faster-whisper, CTranslate2, OpenCV, rapidfuzz)
+        shell: pwsh
+        run: |
+          $py = "C:\تجربة ريلز\ReelMaker\python\python.exe"
+          & $py -c "import numpy, cv2, rapidfuzz, ctranslate2, faster_whisper; print('numpy', numpy.__version__, 'cv2', cv2.__version__, 'rapidfuzz', rapidfuzz.__version__, 'ct2', ctranslate2.__version__, 'fw', faster_whisper.__version__); assert hasattr(cv2, 'CascadeClassifier')"
+          if ($LASTEXITCODE) { exit 1 }
+      - name: Auto mode self-test (mock ASR end to end + real faster-whisper tiny)
+        shell: pwsh
+        run: |
+          $env:PYTHONIOENCODING = "utf-8"
+          $py = "C:\تجربة ريلز\ReelMaker\python\python.exe"
+          & $py "C:\تجربة ريلز\ReelMaker\app\selftest_auto.py" "C:\تجربة ريلز\عينة أوتو" --real-asr tiny
+          if ($LASTEXITCODE) { exit 1 }
       - name: START.bat opens the window
         shell: pwsh
         run: |
@@ -63,6 +76,24 @@ jobs:
           & "$dir\python\python.exe" -c "from PIL import ImageGrab; ImageGrab.grab().save(r'C:\تجربة ريلز\عينة\gui.png')"
           if (Test-Path "$dir\error.log") { Get-Content "$dir\error.log"; exit 1 }
           Stop-Process -Name pythonw -Force
+      - name: START.bat — auto tab runs analyse → sections → review → reel
+        shell: pwsh
+        run: |
+          $env:PYTHONIOENCODING = "utf-8"
+          $dir = "C:\تجربة ريلز\ReelMaker"
+          $g = "C:\تجربة ريلز\واجهة أوتو"
+          & "$dir\python\python.exe" "$dir\app\selftest_auto.py" $g --gui-only
+          if ($LASTEXITCODE) { exit 1 }
+          $argline = "/c `"`"$dir\START.bat`" --autotest-auto `"$g\gui-autotest.json`"`""
+          Start-Process -FilePath "cmd.exe" -ArgumentList $argline -WorkingDirectory $dir
+          $t = 0
+          while (-not (Test-Path "$g\gui-report.json") -and $t -lt 300) { Start-Sleep -Seconds 3; $t += 3 }
+          if (Test-Path "$dir\error.log") { Get-Content "$dir\error.log" }
+          if (-not (Test-Path "$g\gui-report.json")) { Write-Error "GUI auto run did not finish"; exit 1 }
+          $rep = Get-Content "$g\gui-report.json" -Raw -Encoding UTF8 | ConvertFrom-Json
+          $rep | ConvertTo-Json
+          if (-not $rep.ok) { exit 1 }
+          if (-not (Test-Path -LiteralPath $rep.reels[0])) { Write-Error "reel missing"; exit 1 }
       - name: Collect results
         if: always()
         shell: pwsh
@@ -70,6 +101,9 @@ jobs:
           New-Item -ItemType Directory -Force results | Out-Null
           Copy-Item "C:\تجربة ريلز\عينة\*.png" results -ErrorAction SilentlyContinue
           Copy-Item "C:\تجربة ريلز\عينة\output\*" results -ErrorAction SilentlyContinue
+          Copy-Item "C:\تجربة ريلز\واجهة أوتو\shots\*.png" results -ErrorAction SilentlyContinue
+          Get-ChildItem -LiteralPath "C:\تجربة ريلز\عينة أوتو\output" -Recurse -File -ErrorAction SilentlyContinue | Copy-Item -Destination results
+          Get-ChildItem -LiteralPath "C:\تجربة ريلز\ReelMaker\output" -Recurse -File -ErrorAction SilentlyContinue | Where-Object { $_.Extension -in ".mp4", ".jpg" } | Copy-Item -Destination results
           Compress-Archive -Path results\* -DestinationPath selftest-results.zip -Force
       - uses: actions/upload-artifact@v4
         if: always()
@@ -89,6 +123,6 @@ jobs:
           tag=reel-maker
           gh release delete "$tag" -y --cleanup-tag -R "$GITHUB_REPOSITORY" || true
           gh release create "$tag" -R "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
-            --title "Reel Maker (Windows)" --prerelease \
-            --notes "حمّل ReelMaker-windows.zip، فكّه، ودوس START.bat. التفاصيل في README.md جوه الفولدر." \
+            --title "Reel Maker v2.0 (Windows)" --prerelease \
+            --notes "v2.0 — جديد: وضع «أوتوماتيك» (أغنية + كليب + كلمات من غير توقيت ← ريلز كتير مرة واحدة). حمّل ReelMaker-windows.zip، فكّه، ودوس START.bat. أول مرة في الأوتوماتيك البرنامج بينزّل موديل السمع (~500 ميجا) — محتاج نت مرة واحدة. التفاصيل في README.md جوه الفولدر." \
             ReelMaker-windows/ReelMaker-windows.zip selftest-results/selftest-results.zip

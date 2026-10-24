@@ -5,8 +5,10 @@
 Produces <out_dir>/ReelMaker/ and <out_dir>/ReelMaker-windows.zip with:
   python/   embeddable CPython + tkinter (from python.org tcltk.msi) + Pillow (RAQM)
             + libfribidi-0.dll (MSYS2) so Arabic shapes correctly
+            + auto mode: faster-whisper (CTranslate2), rapidfuzz, OpenCV (headless, 4.x for
+              the Haar face detector), numpy, and the MSVC C++ runtime DLLs
   ffmpeg/   ffmpeg.exe (BtbN GPL build: libx264 + AAC)
-  app/ fonts/ START.bat README.md sample/ output/
+  app/ fonts/ START.bat README.md sample/ output/ models/ (speech model downloads here on first use)
 Needs: curl-able internet, msitools (msiextract), zstd, pip.
 """
 import glob
@@ -84,14 +86,22 @@ def main():
     shutil.copytree(os.path.dirname(os.path.dirname(tcl_init)), os.path.join(py, "tcl"),
                     ignore=shutil.ignore_patterns("tix*"))
 
-    # 3. Pillow (Windows wheel, RAQM built in; fribidi loaded at runtime)
+    # 3. Pillow (Windows wheel, RAQM built in; fribidi loaded at runtime) + the auto-mode stack
     wh = os.path.join(work, "wheels")
-    subprocess.check_call([sys.executable, "-m", "pip", "download", "pillow", "--only-binary=:all:",
+    subprocess.check_call([sys.executable, "-m", "pip", "download", "pillow", "faster-whisper",
+                           "rapidfuzz", "opencv-python-headless<5", "msvc-runtime", "--only-binary=:all:",
                            "--platform", "win_amd64", "--python-version", PY.rsplit(".", 1)[0],
                            "--implementation", "cp", "--abi", "cp" + PYTAG, "-d", wh, "-q"])
     site = os.path.join(py, "Lib", "site-packages")
-    for w in glob.glob(os.path.join(wh, "*.whl")):
+    for w in sorted(glob.glob(os.path.join(wh, "*.whl"))):
+        print("  +", os.path.basename(w), flush=True)
         zipfile.ZipFile(w).extractall(site)
+    # wheel .data/data/*.dll (msvc-runtime: msvcp140.dll & co) go next to python.exe
+    for dll in glob.glob(os.path.join(site, "*.data", "data", "*.dll")):
+        if not os.path.exists(os.path.join(py, os.path.basename(dll))):
+            shutil.copy2(dll, py)
+    for d in glob.glob(os.path.join(site, "*.data")):
+        shutil.rmtree(d)
 
     # 4. fribidi DLL from MSYS2 (mingw64, depends on msvcrt only)
     idx = text(MSYS)
@@ -126,9 +136,10 @@ def main():
     shutil.copytree(os.path.join(SRC, "sample"), os.path.join(dst, "sample"))
     for f in ("START.bat", "README.md"):
         shutil.copy2(os.path.join(SRC, f), dst)
-    os.makedirs(os.path.join(dst, "output"))
-    with open(os.path.join(dst, "output", ".keep"), "w") as f:
-        f.write("")
+    for sub in ("output", "models"):
+        os.makedirs(os.path.join(dst, sub))
+        with open(os.path.join(dst, sub, ".keep"), "w") as f:
+            f.write("")
 
     # 7. zip
     zp = os.path.join(out, "ReelMaker-windows.zip")

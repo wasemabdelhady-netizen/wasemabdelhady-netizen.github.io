@@ -6,3 +6,5 @@ __pycache__/
 python/
 ffmpeg/
 fonts/emoji/
+models/
+cache/

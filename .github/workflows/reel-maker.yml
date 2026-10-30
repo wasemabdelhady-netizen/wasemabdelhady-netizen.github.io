@@ -65,6 +65,39 @@ jobs:
           $py = "C:\تجربة ريلز\ReelMaker\python\python.exe"
           & $py "C:\تجربة ريلز\ReelMaker\app\selftest_auto.py" "C:\تجربة ريلز\عينة أوتو" --real-asr tiny
           if ($LASTEXITCODE) { exit 1 }
+      - name: Cinematic packages (onnxruntime, tkinterdnd2, YuNet, lut3d/zscale in ffmpeg)
+        shell: pwsh
+        run: |
+          $dir = "C:\تجربة ريلز\ReelMaker"
+          & "$dir\python\python.exe" -c "import onnxruntime, cv2, numpy, tkinterdnd2; print('ort', onnxruntime.__version__, 'cv2', cv2.__version__); assert hasattr(cv2, 'FaceDetectorYN')"
+          if ($LASTEXITCODE) { exit 1 }
+          $f = & "$dir\ffmpeg\ffmpeg.exe" -hide_banner -filters 2>&1 | Out-String
+          if ($f -notmatch "lut3d" -or $f -notmatch "zscale") { Write-Error "ffmpeg lacks lut3d/zscale"; exit 1 }
+      - name: Cinematic self-test (sync, real ONNX alignment, 4 styles + IG, versioning, Arabic paths)
+        shell: pwsh
+        run: |
+          $env:PYTHONIOENCODING = "utf-8"
+          $py = "C:\تجربة ريلز\ReelMaker\python\python.exe"
+          & $py "C:\تجربة ريلز\ReelMaker\app\selftest_cine.py" "C:\تجربة ريلز\عينة سينمائي" --quick --align
+          if ($LASTEXITCODE) { exit 1 }
+      - name: START.bat — cinematic tab runs analyse → reels → render
+        shell: pwsh
+        run: |
+          $env:PYTHONIOENCODING = "utf-8"
+          $dir = "C:\تجربة ريلز\ReelMaker"
+          $g = "C:\تجربة ريلز\واجهة سينمائي"
+          & "$dir\python\python.exe" "$dir\app\selftest_cine.py" $g --gui-only
+          if ($LASTEXITCODE) { exit 1 }
+          $argline = "/c `"`"$dir\START.bat`" --autotest-cine `"$g\gui-autotest.json`"`""
+          Start-Process -FilePath "cmd.exe" -ArgumentList $argline -WorkingDirectory $dir
+          $t = 0
+          while (-not (Test-Path "$g\gui-report.json") -and $t -lt 600) { Start-Sleep -Seconds 3; $t += 3 }
+          if (Test-Path "$dir\error.log") { Get-Content "$dir\error.log" }
+          if (-not (Test-Path "$g\gui-report.json")) { Write-Error "GUI cinematic run did not finish"; exit 1 }
+          $rep = Get-Content "$g\gui-report.json" -Raw -Encoding UTF8 | ConvertFrom-Json
+          $rep | ConvertTo-Json
+          if (-not $rep.ok) { exit 1 }
+          if (-not (Test-Path -LiteralPath $rep.reels[0])) { Write-Error "reel missing"; exit 1 }
       - name: START.bat opens the window
         shell: pwsh
         run: |
@@ -103,6 +136,9 @@ jobs:
           Copy-Item "C:\تجربة ريلز\عينة\output\*" results -ErrorAction SilentlyContinue
           Copy-Item "C:\تجربة ريلز\واجهة أوتو\shots\*.png" results -ErrorAction SilentlyContinue
           Get-ChildItem -LiteralPath "C:\تجربة ريلز\عينة أوتو\output" -Recurse -File -ErrorAction SilentlyContinue | Copy-Item -Destination results
+          Copy-Item "C:\تجربة ريلز\واجهة سينمائي\*.png" results -ErrorAction SilentlyContinue
+          Get-ChildItem -LiteralPath "C:\تجربة ريلز\عينة سينمائي\frames" -File -ErrorAction SilentlyContinue | Copy-Item -Destination results
+          Get-ChildItem -LiteralPath "C:\تجربة ريلز\عينة سينمائي" -Recurse -File -Filter *.words.json -ErrorAction SilentlyContinue | Copy-Item -Destination results
           Get-ChildItem -LiteralPath "C:\تجربة ريلز\ReelMaker\output" -Recurse -File -ErrorAction SilentlyContinue | Where-Object { $_.Extension -in ".mp4", ".jpg" } | Copy-Item -Destination results
           Compress-Archive -Path results\* -DestinationPath selftest-results.zip -Force
       - uses: actions/upload-artifact@v4
@@ -125,6 +161,6 @@ jobs:
           # tag on main: the token may not tag a commit that changes workflow files;
           # the zip itself is built from this run's commit ($GITHUB_SHA)
           gh release create "$tag" -R "$GITHUB_REPOSITORY" --target main \
-            --title "Reel Maker v2.0 (Windows)" --prerelease \
-            --notes "v2.0 — جديد: وضع «أوتوماتيك» (أغنية + كليب + كلمات من غير توقيت ← ريلز كتير مرة واحدة). حمّل ReelMaker-windows.zip، فكّه، ودوس START.bat. أول مرة في الأوتوماتيك البرنامج بينزّل موديل السمع (~500 ميجا) — محتاج نت مرة واحدة. التفاصيل في README.md جوه الفولدر." \
+            --title "Reel Maker v3.0 (Windows)" --prerelease \
+            --notes "v3.0 — جديد: تاب «سينمائي - Cinematic» (لقطات غُنا + ماستر + كلمات ← ريلز متقطّعة بـ 4 ستايلات، كاريوكي، ونسخة إنستجرام/فيسبوك). أول مرة البرنامج بينزّل موديل توقيت الكلمات (~340 ميجا). حمّل ReelMaker-windows.zip، فكّه، ودوس START.bat. أول مرة في الأوتوماتيك البرنامج بينزّل موديل السمع (~500 ميجا) — محتاج نت مرة واحدة. التفاصيل في README.md جوه الفولدر." \
             ReelMaker-windows/ReelMaker-windows.zip selftest-results/selftest-results.zip

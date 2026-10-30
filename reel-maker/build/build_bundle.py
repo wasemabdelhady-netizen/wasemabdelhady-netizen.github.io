@@ -7,6 +7,8 @@ Produces <out_dir>/ReelMaker/ and <out_dir>/ReelMaker-windows.zip with:
             + libfribidi-0.dll (MSYS2) so Arabic shapes correctly
             + auto mode: faster-whisper (CTranslate2), rapidfuzz, OpenCV (headless, 4.x for
               the Haar face detector), numpy, and the MSVC C++ runtime DLLs
+            + cinematic mode: onnxruntime (word alignment), tkinterdnd2 (drag & drop);
+              OpenCV's YuNet face model ships in data/
   ffmpeg/   ffmpeg.exe (BtbN GPL build: libx264 + AAC)
   app/ fonts/ START.bat README.md sample/ output/ models/ (speech model downloads here on first use)
 Needs: curl-able internet, msitools (msiextract), zstd, pip.
@@ -89,7 +91,8 @@ def main():
     # 3. Pillow (Windows wheel, RAQM built in; fribidi loaded at runtime) + the auto-mode stack
     wh = os.path.join(work, "wheels")
     subprocess.check_call([sys.executable, "-m", "pip", "download", "pillow", "faster-whisper",
-                           "rapidfuzz", "opencv-python-headless<5", "msvc-runtime", "--only-binary=:all:",
+                           "rapidfuzz", "opencv-python-headless<5", "msvc-runtime", "onnxruntime", "tkinterdnd2",
+                           "--only-binary=:all:",
                            "--platform", "win_amd64", "--python-version", PY.rsplit(".", 1)[0],
                            "--implementation", "cp", "--abi", "cp" + PYTAG, "-d", wh, "-q"])
     site = os.path.join(py, "Lib", "site-packages")
@@ -129,11 +132,18 @@ def main():
     # 6. app, fonts, docs
     shutil.copytree(os.path.join(SRC, "app"), os.path.join(dst, "app"),
                     ignore=shutil.ignore_patterns("__pycache__", "selftest.py"))
+    # tkdnd for other platforms isn't needed on Windows
+    dnd = os.path.join(py, "Lib", "site-packages", "tkinterdnd2", "tkdnd")
+    if os.path.isdir(dnd):
+        for d in os.listdir(dnd):
+            if not d.startswith("win-x64"):
+                shutil.rmtree(os.path.join(dnd, d))
     shutil.copy2(os.path.join(SRC, "app", "selftest.py"), os.path.join(dst, "app", "selftest.py"))
     shutil.copytree(os.path.join(SRC, "fonts"), os.path.join(dst, "fonts"))
     os.makedirs(os.path.join(dst, "fonts", "emoji"), exist_ok=True)
     get(EMOJI_URL, os.path.join(dst, "fonts", "emoji", "NotoColorEmoji.ttf"))
     shutil.copytree(os.path.join(SRC, "sample"), os.path.join(dst, "sample"))
+    shutil.copytree(os.path.join(SRC, "data"), os.path.join(dst, "data"))
     for f in ("START.bat", "README.md"):
         shutil.copy2(os.path.join(SRC, f), dst)
     for sub in ("output", "models"):

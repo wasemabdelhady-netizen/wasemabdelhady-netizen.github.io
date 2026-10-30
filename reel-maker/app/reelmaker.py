@@ -10,7 +10,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 ROOT = os.path.dirname(HERE)
 SETTINGS = os.path.join(ROOT, "settings.json")
-VERSION = "v2.0"
+VERSION = "v3.0"
 
 
 def crash_log(text):
@@ -294,34 +294,45 @@ def open_path(p):
 
 
 def main():
-    autotest = None
+    autotest = cine_test = None
     if "--autotest-auto" in sys.argv:  # CI: drive the auto tab from a JSON file
         with open(sys.argv[sys.argv.index("--autotest-auto") + 1], encoding="utf-8") as fh:
             autotest = json.load(fh)
+    if "--autotest-cine" in sys.argv:  # CI: drive the cinematic tab
+        with open(sys.argv[sys.argv.index("--autotest-cine") + 1], encoding="utf-8") as fh:
+            cine_test = json.load(fh)
     root = tk.Tk()
     root.report_callback_exception = lambda *exc: crash_log("".join(traceback.format_exception(*exc)))
-    root.minsize(860, 760)
+    root.minsize(900, 720)
     nb = ttk.Notebook(root)
     nb.pack(fill="both", expand=True)
     manual = ttk.Frame(nb)
     auto = ttk.Frame(nb)
+    cine = ttk.Frame(nb)
     nb.add(manual, text="  يدوي  ")
     nb.add(auto, text="  أوتوماتيك  ")
+    nb.add(cine, text="  سينمائي - Cinematic  ")
     app = App(root, manual)
     settings = read_settings()
 
     def save_auto():
         data = read_settings()
         data["auto"] = settings.get("auto", {})
+        data["cine"] = settings.get("cine", {})
         data["tab"] = nb.index("current")
         write_settings(data)
     import autotab
+    import cinetab
     tab = autotab.AutoTab(root, auto, settings, save_auto, crash_log, open_path, autotest)
-    if autotest or settings.get("tab") == 1:
+    ctab = cinetab.CineTab(root, cine, settings, save_auto, crash_log, open_path, cine_test)
+    if autotest or (settings.get("tab") == 1 and not cine_test):
         nb.select(1)
+    if cine_test or (settings.get("tab") == 2 and not autotest):
+        nb.select(2)
 
     def close():
         tab.close()
+        ctab.close()
         app.close()  # saves the manual fields (keeps the auto ones) and closes
     root.protocol("WM_DELETE_WINDOW", close)
     root.mainloop()

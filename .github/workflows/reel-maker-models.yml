@@ -1,0 +1,36 @@
+name: Reel Maker models (alignment ONNX + speech model mirror)
+
+on:
+  push:
+    paths:
+      - "reel-maker/build/export_align_model.py"
+      - ".github/workflows/reel-maker-models.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: pip install -q torch --index-url https://download.pytorch.org/whl/cpu
+      - run: pip install -q "transformers<5" onnx onnxruntime onnxscript
+      - run: python3 reel-maker/build/export_align_model.py models-out
+      - name: Mirror faster-whisper small (same files the app reads)
+        run: |
+          for f in config.json model.bin tokenizer.json vocabulary.txt; do
+            curl -fsSL -o "models-out/fw-small-$f" "https://huggingface.co/Systran/faster-whisper-small/resolve/main/$f"
+          done
+          ls -la models-out
+      - name: Publish to the reel-maker-models release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          tag=reel-maker-models
+          gh release view "$tag" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1 || \
+            gh release create "$tag" -R "$GITHUB_REPOSITORY" --target main --prerelease \
+              --title "Reel Maker models" \
+              --notes "Models Reel Maker downloads on first use (Arabic alignment ONNX int8 from jonatasgrosman/wav2vec2-large-xlsr-53-arabic, Apache-2.0; faster-whisper small, MIT). Don't delete."
+          gh release upload "$tag" -R "$GITHUB_REPOSITORY" --clobber models-out/*

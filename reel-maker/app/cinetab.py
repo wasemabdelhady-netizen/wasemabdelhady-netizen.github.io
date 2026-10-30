@@ -63,13 +63,18 @@ class CineTab:
         self.sections = []
         self.t0 = time.time()
 
-        f = ttk.Frame(parent, padding=16)
+        st = ttk.Style()
+        st.configure("Cine.TButton", background="#e0a458", foreground="#0a0a0a",
+                     font=("Segoe UI", 11, "bold"), padding=5)
+        st.map("Cine.TButton", background=[("active", "#f0bb70"), ("disabled", "#5a4a35")])
+        st.configure("TSpinbox", fieldbackground="#1a1714", foreground="#f5efe6", arrowcolor="#f5efe6")
+        f = ttk.Frame(parent, padding=(12, 8))
         f.pack(fill="both", expand=True)
         f.columnconfigure(1, weight=1)
         ttk.Label(f, text="سينمائي  ·  ريلز متقطّعة من لقطات الغُنا", style="Title.TLabel").grid(
-            row=0, column=0, columnspan=3, sticky="e", pady=(0, 4))
-        ttk.Label(f, text="اسحب الملفات وارميها هنا (فيديو، ماستر، ستيم، كلمات) أو اختارها بالزرار",
-                  style="Hint.TLabel").grid(row=1, column=0, columnspan=3, sticky="e", pady=(0, 6))
+            row=0, column=1, columnspan=2, sticky="e", pady=(0, 4))
+        ttk.Label(f, text="اسحب الملفات وارميها هنا أو اختارها بالزرار",
+                  style="Hint.TLabel").grid(row=0, column=0, columnspan=2, sticky="w", pady=(0, 4))
         self.v = {k: tk.StringVar() for k in ("footage", "master", "stem", "lyrics", "srt", "song", "out")}
         r = 2
         r = self.file_row(f, r, "الفيديو (Footage)", "footage", VIDEO_TYPES)
@@ -77,13 +82,10 @@ class CineTab:
         r = self.file_row(f, r, "الفوكال ستيم (اختياري)", "stem", AUDIO_TYPES)
         r = self.file_row(f, r, "الكلمات .txt", "lyrics", TEXT_TYPES)
         r = self.file_row(f, r, "توقيت تقريبي .srt (اختياري)", "srt", SRT_TYPES)
-        ttk.Label(f, text="اسم الأغنية").grid(row=r, column=0, sticky="w", pady=2)
-        ttk.Entry(f, textvariable=self.v["song"], justify="right").grid(row=r, column=1, columnspan=2, sticky="ew", pady=3, padx=(6, 0))
-        r += 1
         r = self.file_row(f, r, "فولدر الريلز", "out", None, folder=True)
 
         opts = ttk.Frame(f)
-        opts.grid(row=r, column=0, columnspan=3, sticky="e", pady=4)
+        opts.grid(row=r, column=0, columnspan=3, sticky="ew", pady=2)
         self.n_reels = tk.IntVar(value=4)
         self.ig = tk.BooleanVar(value=False)
         self.glare = tk.BooleanVar(value=False)
@@ -91,33 +93,30 @@ class CineTab:
         ttk.Checkbutton(opts, text="نسخة إنستجرام/فيسبوك كمان", variable=self.ig).pack(side="right", padx=8)
         ttk.Spinbox(opts, from_=1, to=12, width=4, textvariable=self.n_reels, justify="center").pack(side="right")
         ttk.Label(opts, text="عدد الريلز").pack(side="right", padx=(12, 4))
-        r += 1
-
-        self.go_an = ttk.Button(f, text="١ — حلّل  ▶", style="Go.TButton", command=self.analyze)
-        self.go_an.grid(row=r, column=0, columnspan=3, sticky="ew", pady=(6, 6))
+        ttk.Entry(opts, textvariable=self.v["song"], justify="right", width=16).pack(side="right", padx=4)
+        ttk.Label(opts, text="اسم الأغنية").pack(side="right")
+        self.go_an = ttk.Button(opts, text="١ — حلّل  ▶", style="Cine.TButton", command=self.analyze)
+        self.go_an.pack(side="left", fill="x", expand=True, padx=(0, 10))
         r += 1
 
         # sync + words row
         sync = ttk.Frame(f)
-        sync.grid(row=r, column=0, columnspan=3, sticky="ew")
+        sync.grid(row=r, column=0, columnspan=3, sticky="ew", pady=(4, 0))
         self.off_var = tk.StringVar(value="")
         self.conf_lbl = ttk.Label(sync, text="", style="Hint.TLabel")
-        self.conf_lbl.pack(side="left", padx=4)
+        ttk.Button(sync, text="words.json", command=self.open_words).pack(side="left", padx=1)
+        ttk.Button(sync, text="أعد التحميل", command=self.reload_words).pack(side="left", padx=1)
+        ttk.Button(sync, text="توقيت من الأول", command=lambda: self.analyze(redo=True)).pack(side="left", padx=1)
+        self.conf_lbl.pack(side="left", padx=6)
         for d in (0.1, 0.01, -0.01, -0.1):
-            ttk.Button(sync, text="%+.2f" % d, width=6, command=lambda d=d: self.nudge(d)).pack(side="right", padx=1)
+            ttk.Button(sync, text="%+.2f" % d, width=5, command=lambda d=d: self.nudge(d)).pack(side="right", padx=1)
         ttk.Entry(sync, textvariable=self.off_var, width=9, justify="center").pack(side="right", padx=4)
-        ttk.Label(sync, text="الفيديو بيبدأ عند ثانية (من الماستر):").pack(side="right")
-        r += 1
-        wrow = ttk.Frame(f)
-        wrow.grid(row=r, column=0, columnspan=3, sticky="ew", pady=(4, 2))
-        ttk.Button(wrow, text="افتح words.json", command=self.open_words).pack(side="right", padx=2)
-        ttk.Button(wrow, text="أعد التحميل", command=self.reload_words).pack(side="right", padx=2)
-        ttk.Button(wrow, text="اعمل التوقيت من الأول", command=lambda: self.analyze(redo=True)).pack(side="right", padx=2)
+        ttk.Label(sync, text="الفيديو بيبدأ عند ثانية:").pack(side="right")
         r += 1
 
         # reels table
         cols = ("on", "name", "start", "end", "len", "style", "first")
-        self.tree = ttk.Treeview(f, columns=cols, show="headings", height=5, selectmode="browse")
+        self.tree = ttk.Treeview(f, columns=cols, show="headings", height=4, selectmode="browse")
         for c, t, w in (("on", "✔", 34), ("name", "الريل", 70), ("start", "من", 70), ("end", "لحد", 70),
                         ("len", "الطول", 55), ("style", "الستايل", 170), ("first", "أول سطر", 300)):
             self.tree.heading(c, text=t)
@@ -125,7 +124,7 @@ class CineTab:
         self.tree.grid(row=r, column=0, columnspan=3, sticky="nsew", pady=4)
         self.tree.bind("<<TreeviewSelect>>", self.on_select)
         self.tree.bind("<Double-1>", lambda e: self.toggle())
-        f.rowconfigure(r, weight=1)
+        f.rowconfigure(r, weight=1, minsize=120)
         r += 1
         ed = ttk.Frame(f)
         ed.grid(row=r, column=0, columnspan=3, sticky="ew")
@@ -133,9 +132,9 @@ class CineTab:
         names = [cine_edit.STYLE_NAMES[k] for k in "ABCD"] if cine_edit else []
         ttk.Button(ed, text="طبّق", command=self.apply_row).pack(side="left")
         ttk.Button(ed, text="✔ / ✖", command=self.toggle).pack(side="left", padx=4)
-        ttk.Entry(ed, textvariable=self.e_hook, width=26, justify="right").pack(side="right", padx=2)
+        ttk.Entry(ed, textvariable=self.e_hook, width=16, justify="right").pack(side="right", padx=2)
         ttk.Label(ed, text="هوك IG (اختياري)").pack(side="right")
-        ttk.Combobox(ed, textvariable=self.e_style, values=names, state="readonly", width=22).pack(side="right", padx=4)
+        ttk.Combobox(ed, textvariable=self.e_style, values=names, state="readonly", width=19).pack(side="right", padx=4)
         ttk.Entry(ed, textvariable=self.e_end, width=8, justify="center").pack(side="right", padx=2)
         ttk.Label(ed, text="لحد").pack(side="right")
         ttk.Entry(ed, textvariable=self.e_start, width=8, justify="center").pack(side="right", padx=2)
@@ -143,9 +142,9 @@ class CineTab:
         r += 1
 
         btns = ttk.Frame(f)
-        btns.grid(row=r, column=0, columnspan=3, sticky="ew", pady=(8, 4))
+        btns.grid(row=r, column=0, columnspan=3, sticky="ew", pady=(6, 2))
         btns.columnconfigure(0, weight=1)
-        self.go_r = ttk.Button(btns, text="٢ — اعمل الريلز  ▶", style="Go.TButton", command=self.render)
+        self.go_r = ttk.Button(btns, text="٢ — اعمل الريلز  ▶", style="Cine.TButton", command=self.render)
         self.go_r.grid(row=0, column=0, sticky="ew")
         self.go_p = ttk.Button(btns, text="معاينة ٥ ث", command=self.preview)
         self.go_p.grid(row=0, column=1, padx=(8, 0))
@@ -154,13 +153,13 @@ class CineTab:
         ttk.Button(btns, text="افتح فولدر الريلز", command=self.open_out).grid(row=0, column=3, padx=(8, 0))
         r += 1
         self.pb = ttk.Progressbar(f, maximum=1000)
-        self.pb.grid(row=r, column=0, columnspan=3, sticky="ew", pady=4)
+        self.pb.grid(row=r, column=0, columnspan=3, sticky="ew", pady=2)
         r += 1
         self.status = ttk.Label(f, text="جاهز", style="Hint.TLabel", anchor="e")
         self.status.grid(row=r, column=0, columnspan=3, sticky="ew")
         r += 1
-        self.logbox = tk.Text(f, height=4, bg="#141210", fg="#d9cfc0", relief="flat", font=("Consolas", 9), wrap="word")
-        self.logbox.grid(row=r, column=0, columnspan=3, sticky="nsew", pady=(6, 0))
+        self.logbox = tk.Text(f, height=3, bg="#141210", fg="#d9cfc0", relief="flat", font=("Consolas", 9), wrap="word")
+        self.logbox.grid(row=r, column=0, columnspan=3, sticky="nsew", pady=(2, 0))
         self.logbox.tag_configure("r", justify="right")
 
         self.load()
@@ -346,7 +345,7 @@ class CineTab:
             self.sections = result
             self.off_var.set("%.3f" % self.project.offset)
             c = self.project.conf
-            self.conf_lbl.configure(text="ثقة المزامنة %d%%" % (c * 100) if c is not None else "الفرق متسجّل من قبل")
+            self.conf_lbl.configure(text="ثقة %d%%" % (c * 100) if c is not None else "متسجّل")
             self.fill()
             self.busy(False)
             self.remember()

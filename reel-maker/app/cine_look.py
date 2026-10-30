@@ -250,14 +250,14 @@ class Light:
         b = noise_field(self.sw, self.sh, seed + 1)
         n = a * (1 - p) + b * p
         env = np.sin(np.pi * np.clip(p, 0, 1))
-        thr = 1.0 - 0.75 * env
-        m = np.clip((n - thr) / 0.18 + (self.xx - 0.5) * 0.2, 0, 1)
-        m = m ** 1.4
-        orange = np.array([255, 110, 40], np.float32)
-        core = np.array([255, 235, 210], np.float32) if white else np.array([255, 150, 90], np.float32)
-        hot = np.clip((m - 0.55) / 0.45, 0, 1)[..., None]
-        light = m[..., None] * orange * 1.4 * (1 - hot) + hot * core * 1.6
-        light += env * 30.0 * np.array([1.0, 0.45, 0.25], np.float32)
+        thr = 1.0 - 0.5 * env              # at the peak about a third of the frame burns
+        m = np.clip((n - thr) / 0.22 + (self.xx - 0.5) * 0.25, 0, 1)
+        m = m ** 1.6
+        orange = np.array([255, 105, 38], np.float32)
+        core = np.array([255, 225, 195], np.float32) if white else np.array([255, 140, 80], np.float32)
+        hot = np.clip((m - 0.65) / 0.35, 0, 1)[..., None]
+        light = m[..., None] * orange * 1.1 * (1 - hot) + hot * core * 1.15
+        light += env * 22.0 * np.array([1.0, 0.45, 0.25], np.float32)
         return light.astype(np.float32)
 
     def flash(self, p):

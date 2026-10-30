@@ -108,11 +108,15 @@ class Ctx:
         return min(near, key=lambda x: abs(x - t)) if near else t
 
     def key_line(self):
-        """Index of the line with a *marked* key word, else the longest held line."""
+        """Index of the line with a *marked* key word, else the longest held line —
+        among lines that sit fully inside the reel (room for a freeze after them)."""
         best, bi = -1.0, 0
         for i, l in enumerate(self.lines):
             s = (l["end"] - l["start"]) + (3.0 if l.get("marked") else 0.0)
-            if 1.0 < l["start"] < self.dur - 2.5 and s > best:
+            inside = 1.0 < l["start"] and l["end"] < self.dur - 1.2
+            if not inside:
+                s -= 10.0
+            if s > best:
                 best, bi = s, i
         return bi
 
@@ -240,8 +244,12 @@ def build_c(c):
         shots.append(shot(a, b, framing=f, push=(1.0, 1.09), dx=f.get("dx", 0.0)))
     for b in breaks:
         effects.append(fx("burn", b - 0.35, b + 0.35, white=not c.ig, seed=int(b * 13)))
-    for s, e in c.long_notes():
-        effects.append(fx("echo", s, min(c.dur, e + 0.25)))
+    last = -10.0
+    for s, e in sorted(c.long_notes(), key=lambda n: -(n[1] - n[0]))[:6]:
+        if len([x for x in effects if x["type"] == "echo"]) >= 3:
+            break
+        if all(abs(s - x["t0"]) > 3.0 for x in effects if x["type"] == "echo"):
+            effects.append(fx("echo", s, min(c.dur, e + 0.25)))
     return shots, effects, dict(bars=True)
 
 
@@ -257,9 +265,12 @@ def build_d(c):
     freeze = None
     if kl:
         kw = kl.get("key", -1)
-        if kw is None or kw < 0 or kw >= len(kl["words"]):
-            kw = max(range(len(kl["words"])), key=lambda j: kl["words"][j][1] - kl["words"][j][0])
-        t = kl["words"][kw][0]
+        ok = [j for j in range(len(kl["words"])) if 1.2 < kl["words"][j][0] < c.dur - 2.0]
+        if kw is None or kw not in ok:  # the gold word the karaoke shows, if it fits
+            import engine
+            g = engine.pick_gold(kl["text"].split())
+            kw = g if g in ok else (max(ok, key=lambda j: kl["words"][j][1] - kl["words"][j][0]) if ok else -1)
+        t = kl["words"][kw][0] if kw >= 0 else -1
         if 1.2 < t < c.dur - 2.0:
             freeze = (t, min(t + 1.15, c.dur - 0.6))
             effects.append(fx("freeze", freeze[0], freeze[1]))

@@ -273,7 +273,7 @@ class Reel:
         stamps = {}
         for e in plan["effects"]:
             if e["type"] == "stamp":
-                stamps[id(e)] = cine_text.Stamp(e["word"], k=k, cx=W // 2, cy=int(760 * k))
+                stamps[id(e)] = cine_text.Stamp(e["word"], k=k, cx=W // 2, cy=int(1120 * k), angle=-6.0)
         sig, sig_x, sig_dy = cine_text.signature(self.song, k, W)
         sig_y = int(1585 * k) + sig_dy if not bars else int(1700 * k) + sig_dy
 
@@ -320,7 +320,7 @@ class Reel:
                     frame_src = src.copy()
                     cine_look.deglare(frame_src, cine_look.eye_boxes(face[3], face[2], sw, sh), graded=True)
                 half = None
-                if any(s["kind"] in ("panels", "split", "double") for s in [cine_edit.shot_at(plan, t)]) or sw > 2.2 * W:
+                if cine_edit.shot_at(plan, t)["kind"] in ("panels", "split", "double") and sw > 1.6 * W:
                     half = cv2.resize(frame_src, (sw // 2, sh // 2), interpolation=cv2.INTER_AREA)
                 canvas = self.compose(plan, t, frame_src, half, face, W, H, band)
                 canvas = self.temporal(plan, t, canvas, state, W, H)
@@ -399,9 +399,7 @@ class Reel:
                 return canvas
             return warp(src, half, rect_for(face, sw, sh, W / float(H), f, zp), W, H)
         if kind == "panels":
-            g = max(2, H // 192)
-            ph = (H - 2 * g) // 3
-            hs = [ph, H - 2 * g - 2 * ph, ph]
+            hs, g = self.panel_rows(H)
             fr = [dict(x) for x in s["panels"]]
             for (ts, panel, choice) in s.get("swaps", []):
                 if t >= ts:
@@ -529,12 +527,18 @@ class Reel:
             frame[:band[0]] = 0
             frame[band[1]:] = 0
         if s["kind"] == "panels":
-            g = max(2, H // 192)
-            ph = (H - 2 * g) // 3
-            mid = H - 2 * g - 2 * ph
-            frame[ph:ph + g] = 0
-            frame[ph + g + mid:ph + 2 * g + mid] = 0
+            hs, g = self.panel_rows(H)
+            frame[hs[0]:hs[0] + g] = 0
+            frame[hs[0] + g + hs[1]:hs[0] + 2 * g + hs[1]] = 0
         return frame
+
+    @staticmethod
+    def panel_rows(H):
+        """Panel heights + gutter: two shorter panels on top, a taller one at the bottom
+        so the lyric line (fixed at y≈1330) never sits on a gutter."""
+        g = max(2, H // 192)
+        top = int((H - 2 * g) * 0.29)
+        return [top, top, H - 2 * g - 2 * top], g
 
     # -- thumbnail ------------------------------------------------------------------
     def thumbnail(self, path, frame, rl, k):
@@ -546,7 +550,7 @@ class Reel:
         text = self.hook_text or (rl[0]["text"] if rl else "")
         key = self.hook_key if self.hook_text else (rl[0]["key"] if rl else -1)
         if text:
-            h = cine_text.Hook(text, key, k=1.15, cy=900, until=99)
+            h = cine_text.Hook(text, key, k=1.15, cy=1250, until=99)
             h.draw(img, 0.0)
         sig, x, dy = cine_text.signature(self.song, 1.0, 1080)
         cine_text.blend(img, sig, x, 1585 + dy, 0.95)

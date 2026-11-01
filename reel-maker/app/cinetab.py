@@ -11,12 +11,15 @@ from tkinter import filedialog, messagebox, ttk
 try:
     import cinematic
     import cine_edit
-    from cine_look import GREEN_DEFAULT
+    from cine_look import GREEN_DEFAULT, GRAIN_DEFAULT
     import packui
+    FX_LABELS = {"leaks": "إضاءة جانبية (light leaks)", "burn": "حرق فيلم (film burn)",
+                 "bokeh": "بوكيه / دواير", "flash": "فلاشات", "echo": "إيكو / أثر على النوتات الطويلة",
+                 "vignette": "فينييت (تغميق الأطراف، خفيف)"}
     CINE_ERR = None
 except Exception:  # missing package in the bundle: the other tabs still work
     cinematic = cine_edit = packui = None
-    GREEN_DEFAULT = 0.86
+    GREEN_DEFAULT, GRAIN_DEFAULT, FX_LABELS = 0.86, 15, {}
     CINE_ERR = traceback.format_exc()
 
 VIDEO_EXT = (".mp4", ".mov", ".m4v", ".mkv", ".mts", ".avi")
@@ -117,6 +120,22 @@ class CineTab:
             self.packbar.frame.pack(side="left")
         r += 1
 
+        # grain (per footage) + «المؤثرات» (kept in the pack)
+        frow = ttk.Frame(f)
+        frow.grid(row=r, column=0, columnspan=3, sticky="ew", pady=(2, 0))
+        self.grain = tk.DoubleVar(value=GRAIN_DEFAULT)
+        self.grain_lbl = ttk.Label(frow, text="%d" % GRAIN_DEFAULT, width=4)
+        self.grain_lbl.pack(side="right")
+        ttk.Scale(frow, from_=0, to=100, variable=self.grain, orient="horizontal", length=220,
+                  command=lambda x: self.grain_lbl.configure(text="%d" % float(x))).pack(side="right", padx=6)
+        ttk.Label(frow, text="الجرين").pack(side="right")
+        ttk.Button(frow, text="الافتراضي %d" % GRAIN_DEFAULT, command=lambda: self.set_grain(GRAIN_DEFAULT)).pack(side="right", padx=6)
+        if self.packbar:
+            ttk.Button(frow, text="المؤثرات…", command=self.open_effects).pack(side="left")
+            self.fx_note = ttk.Label(frow, text="", style="Hint.TLabel")
+            self.fx_note.pack(side="left", padx=6)
+        r += 1
+
         # sync + words row
         sync = ttk.Frame(f)
         sync.grid(row=r, column=0, columnspan=3, sticky="ew", pady=(4, 0))
@@ -181,6 +200,7 @@ class CineTab:
         self.logbox.tag_configure("r", justify="right")
 
         self.load()
+        self.show_fx()
         self.enable_dnd(parent)
         for b in (self.go_r, self.go_p):
             b.configure(state="disabled")
@@ -209,6 +229,28 @@ class CineTab:
     def green_value(self):
         return round(min(max(float(self.green.get()), 0.80), 1.00), 2)
 
+    def grain_value(self):
+        return int(round(min(max(float(self.grain.get()), 0), 100)))
+
+    def set_grain(self, g):
+        self.grain.set(g)
+        self.grain_lbl.configure(text="%d" % g)
+
+    def open_effects(self):
+        w = self.packbar.effects(cine_edit.DEFAULT_FX, FX_LABELS)
+        w.bind("<Destroy>", lambda e: self.show_fx())
+
+    def show_fx(self):
+        if not self.packbar or not hasattr(self, "fx_note"):
+            return
+        fx = cine_edit.fx_settings(self.packbar.get_fx())
+        if fx["clean"]:
+            txt = "من غير مؤثرات"
+        else:
+            on = [FX_LABELS[k].split(" (")[0] for k in FX_LABELS if fx[k]]
+            txt = "، ".join(on) + "  · قوة %d" % fx["intensity"] if on else "كله مقفول"
+        self.fx_note.configure(text=txt)
+
     def set_green(self, g):
         self.green.set(g)
         self.green_lbl.configure(text="%.2f" % g)
@@ -216,6 +258,8 @@ class CineTab:
     def load_green(self):
         g = self.settings.get("greens", {}).get(self.v["footage"].get().strip(), GREEN_DEFAULT)
         self.set_green(float(g))
+        if hasattr(self, "grain"):
+            self.set_grain(float(self.settings.get("grains", {}).get(self.v["footage"].get().strip(), GRAIN_DEFAULT)))
 
     def set_path(self, key, p):
         self.v[key].set(p)
@@ -286,6 +330,7 @@ class CineTab:
         self.settings.update(n=self.n_reels.get(), ig=self.ig.get(), glare=self.glare.get())
         if self.v["footage"].get().strip():
             self.settings.setdefault("greens", {})[self.v["footage"].get().strip()] = self.green_value()
+            self.settings.setdefault("grains", {})[self.v["footage"].get().strip()] = self.grain_value()
         if self.project is not None and self.project.offset is not None:
             self.settings.setdefault("offsets", {})[self.v["footage"].get()] = [self.project.offset, self.project.rate]
         self.save_settings()
@@ -349,6 +394,7 @@ class CineTab:
         p = cinematic.Project(g["footage"], g["master"], g["lyrics"], g["stem"], g["srt"], g["song"], g["out"],
                               n_reels=max(1, int(self.n_reels.get() or 4)), ig=self.ig.get(), deglare=self.glare.get(),
                               green=self.green_value(), pack=self.packbar.get() if self.packbar else None,
+                              grain=self.grain_value(),
                               progress=lambda f, msg="": self.q.put(("p", f, msg)),
                               log=lambda msg: self.q.put(("l", msg)), cancel=self.cancel, offset=off)
         p.rate = rate
@@ -482,6 +528,7 @@ class CineTab:
         self.sync_from_entry()
         self.project.ig, self.project.deglare = self.ig.get(), self.glare.get()
         self.project.green = self.green_value()
+        self.project.grain = self.grain_value()
         if self.packbar:
             self.project.pack = self.packbar.get()
         self.project.out_dir = self.v["out"].get().strip() or self.project.out_dir
@@ -559,6 +606,10 @@ class CineTab:
                 self.set_green(float(at["green"]))
             if at.get("pack") and self.packbar:
                 self.packbar.set(at["pack"])
+            if at.get("grain") is not None:
+                self.set_grain(float(at["grain"]))
+            if at.get("fx") and self.packbar:
+                self.packbar.set_fx(at["fx"])
             self.shot("cine-1-inputs.png")
             self.analyze()
         elif step == "render":

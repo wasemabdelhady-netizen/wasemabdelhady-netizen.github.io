@@ -148,7 +148,9 @@ def main():
         with open(os.path.join(work, "gui-autotest.json"), "w", encoding="utf-8") as fh:
             json.dump(dict(footage=foot_p, master=master_p, stem=stem_p, lyrics=lyr_p, srt=srt_p,
                            out=os.path.join(work, "الريلز - واجهة"), shots=work,
-                           report=os.path.join(work, "gui-report.json"), seconds=5, green=0.92, pack="كتابة"), fh, ensure_ascii=False)
+                           report=os.path.join(work, "gui-report.json"), seconds=5, green=0.92, pack="كتابة", grain=15,
+                           fx=dict(clean=False, leaks=False, burn=True, bokeh=False, flash=True, echo=True,
+                                   vignette=True, intensity=40)), fh, ensure_ascii=False)
         print("gui inputs ready")
         return
     logs = []

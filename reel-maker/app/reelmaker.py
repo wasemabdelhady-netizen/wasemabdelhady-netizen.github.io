@@ -10,7 +10,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 ROOT = os.path.dirname(HERE)
 SETTINGS = os.path.join(ROOT, "settings.json")
-VERSION = "v3.1"
+VERSION = "v3.2"
 
 
 def crash_log(text):

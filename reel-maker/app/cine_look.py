@@ -161,25 +161,33 @@ def neutral_fix(samples, log=None):
 
 # --------------------------------------------------------------------------- spatial
 
+GRAIN_DEFAULT = 15        # «الجرين» slider 0–100: 15 = felt, not seen; 0 = off
+GRAIN_SIGMA_AT_100 = 6.0  # noise std (8-bit levels) at 100; v3.0 used 3.2 (≈ 53)
+VIGNETTE = 0.34           # full vignette depth (v3.0)
+VIGNETTE_LOW = 0.16       # «vignette on, low» default
+
+
 class Optics:
     """Bloom, edge blur, vignette and grain for one output size (uint8, OpenCV)."""
 
-    def __init__(self, w, h, seed=7):
+    def __init__(self, w, h, seed=7, grain=GRAIN_DEFAULT, vignette=VIGNETTE_LOW):
         import cv2
         self.w, self.h = w, h
         yy, xx = np.mgrid[0:h, 0:w].astype(np.float32)
         nx, ny = (xx / w - 0.5) * 2, (yy / h - 0.5) * 2
         r = np.sqrt((nx * 0.9) ** 2 + (ny * 0.72) ** 2)
-        vig = 1.0 - 0.34 * _smoothstep(0.45, 1.35, r)
+        self.vignette = float(vignette)
+        vig = 1.0 - self.vignette * _smoothstep(0.45, 1.35, r)
         self.vig3 = np.repeat((vig * 255)[..., None], 3, axis=2).astype(np.uint8)
         e = (_smoothstep(0.62, 1.25, r) * 0.85).astype(np.float32)
         self.edge, self.keep = e, (1.0 - e).astype(np.float32)
         rng = np.random.default_rng(seed)
         self.grain = []
-        for _ in range(6):
+        sigma = GRAIN_SIGMA_AT_100 * min(max(float(grain), 0.0), 100.0) / 100.0
+        for _ in range(6 if sigma > 0.05 else 0):
             g = rng.normal(0, 1, (h, w)).astype(np.float32)
-            g = cv2.GaussianBlur(g, (0, 0), 0.65)
-            g = g / (g.std() + 1e-6) * 3.2
+            g = cv2.GaussianBlur(g, (0, 0), 0.75)  # fine, soft grain: no pixel-sized speckle
+            g = g / (g.std() + 1e-6) * sigma
             g3 = np.repeat(g[..., None], 3, axis=2)
             self.grain.append((np.clip(g3, 0, 255).astype(np.uint8), np.clip(-g3, 0, 255).astype(np.uint8)))
         self.k = 0
@@ -209,8 +217,9 @@ class Optics:
         blur = cv2.resize(cv2.GaussianBlur(cv2.resize(f, (sw, sh), interpolation=cv2.INTER_AREA), (0, 0), 2.2),
                           (self.w, self.h), interpolation=cv2.INTER_LINEAR)
         f = cv2.blendLinear(f, blur, self.keep, self.edge)
-        f = cv2.multiply(f, self.vig3, scale=1 / 255.0)
-        if grain:
+        if self.vignette > 0:
+            f = cv2.multiply(f, self.vig3, scale=1 / 255.0)
+        if grain and self.grain:
             gp, gn = self.grain[self.k % len(self.grain)]
             self.k += 1
             f = cv2.subtract(cv2.add(f, gp), gn)
@@ -240,7 +249,20 @@ class Light:
         self.xx, self.yy = xx / self.sw, yy / self.sh
 
     def leak(self, p, seed, strength=1.0):
-        """p 0..1 through the leak's life."""
+        """Light leak: a soft warm wash that enters from one frame edge and slides off it
+        (no round shapes, never over the face centre). p 0..1 through its life."""
+        rng = np.random.default_rng(seed)
+        env = np.sin(np.pi * np.clip(p, 0, 1)) ** 1.5 * strength
+        side = rng.integers(0, 4)
+        reach = 0.22 + 0.18 * np.sin(np.pi * np.clip(p, 0, 1))
+        d = (self.xx, 1 - self.xx, self.yy, 1 - self.yy)[side]
+        m = (1 - _smoothstep(0.0, reach, d)) ** 1.6
+        wob = 0.75 + 0.25 * np.sin(2 * np.pi * ((self.yy if side < 2 else self.xx) * 1.3 + p * 0.6 + rng.random()))
+        col = self.LEAK_COLOURS[seed % len(self.LEAK_COLOURS)]
+        return (m * wob)[..., None] * col * 0.75 * env
+
+    def bokeh(self, p, seed, strength=1.0):
+        """Round soft light blobs drifting in from the side (the v3.0 «leak»)."""
         rng = np.random.default_rng(seed)
         env = np.sin(np.pi * np.clip(p, 0, 1)) ** 1.5 * strength
         out = np.zeros((self.sh, self.sw, 3), np.float32)

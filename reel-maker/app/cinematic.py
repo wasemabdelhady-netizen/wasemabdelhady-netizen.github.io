@@ -68,7 +68,7 @@ def default_out_dir(footage):
 class Project:
     def __init__(self, footage, master, lyrics, stem="", srt="", song="", out_dir="",
                  n_reels=4, ig=False, deglare=False, whisper="small", progress=None, log=None,
-                 green=cine_look.GREEN_DEFAULT, pack=None,
+                 green=cine_look.GREEN_DEFAULT, pack=None, grain=cine_look.GRAIN_DEFAULT, fx=None,
                  cancel=None, asr=None, offset=None):
         self.footage, self.master, self.lyrics = footage, master, lyrics
         self.stem, self.srt = stem or "", srt or ""
@@ -77,6 +77,8 @@ class Project:
         self.n_reels, self.ig, self.deglare, self.whisper = n_reels, ig, deglare, whisper
         self.green = green             # green gain of the v5 grade for this footage
         self.pack = pack or textfx.default_pack()  # lyric fonts + word animation
+        self.grain = grain                         # «الجرين» 0–100, per footage
+        self.fx = fx                               # «المؤثرات» (None = the pack's, else defaults)
         self.progress = progress or (lambda f, m="": None)
         self.log = log or (lambda m: print(m, flush=True))
         self.cancel = cancel or threading.Event()
@@ -323,7 +325,7 @@ class Project:
                                     progress=lambda f, m="", a=a, b=b, label=label: self.progress(
                                         a + (b - a) * f, "%s — %d%%" % (label, f * 100)),
                                     cancel=self.cancel, seed=n + 1, rate=self.rate, green=self.green,
-                                    pack=self.pack)
+                                    pack=self.pack, grain=self.grain, fx=self.fx)
             base = "%s - %s - %s%s" % (engine.safe_name(self.song), s["name"], cine_edit.STYLE_NAMES[s["style"]].split(" (")[0].replace("—", "-"),
                                        " - IG-FB" if ig else "")
             base = engine.safe_name(base) if len(base) > 60 else re.sub(r'[\\/:*?"<>|]+', " ", base).strip()
@@ -371,6 +373,8 @@ def main(argv=None):
     ap.add_argument("--offset", type=float, default=None)
     ap.add_argument("--ig", action="store_true")
     ap.add_argument("--deglare", action="store_true")
+    ap.add_argument("--grain", type=float, default=cine_look.GRAIN_DEFAULT, help="0-100 (default 15)")
+    ap.add_argument("--clean", action="store_true", help="«من غير مؤثرات»")
     ap.add_argument("--pack", default="", help="style pack name or id (default: سينمائي)")
     ap.add_argument("--green", type=float, default=cine_look.GREEN_DEFAULT,
                     help="green gain of the grade, 0.80-1.00 (v5 preset: 0.86)")
@@ -385,7 +389,8 @@ def main(argv=None):
             print("[%3d%%] %s" % (f * 100, m), flush=True)
     p = Project(a.footage, a.master, a.lyrics, a.stem, a.srt, a.song, a.out, a.reels, a.ig, a.deglare,
                 progress=prog, offset=a.offset, green=a.green,
-                pack=textfx.get_pack(a.pack) if a.pack else None)
+                pack=textfx.get_pack(a.pack) if a.pack else None, grain=a.grain,
+                fx=dict(clean=True) if a.clean else None)
     secs = p.analyze()
     for i, s in enumerate(secs):
         if a.styles:

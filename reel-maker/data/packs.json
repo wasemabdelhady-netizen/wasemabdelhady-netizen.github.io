@@ -39,7 +39,8 @@
    "anim": "slide",
    "line_in": "slide",
    "line_out": "fade",
-   "glow": "soft"
+   "glow": "soft",
+   "size": 0.92
   },
   {
    "id": "bold",
@@ -69,7 +70,8 @@
    "anim": "type",
    "line_in": "none",
    "line_out": "fade",
-   "glow": "soft"
+   "glow": "soft",
+   "size": 0.92
   },
   {
    "id": "cinematic",

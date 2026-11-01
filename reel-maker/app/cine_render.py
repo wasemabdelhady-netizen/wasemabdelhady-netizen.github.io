@@ -216,10 +216,13 @@ class Reel:
     def __init__(self, footage, master, offset, start, end, lines, beats, face, style,
                  song="", ig=False, deglare=False, hook_text=None, hook_key=-1,
                  log=None, progress=None, cancel=None, seed=1, rate=1.0, green=cine_look.GREEN_DEFAULT,
-                 pack=None):
+                 pack=None, grain=cine_look.GRAIN_DEFAULT, fx=None):
         self.footage, self.master, self.offset, self.rate = footage, master, offset, rate
         self.green = green
         self.pack = pack or textfx.default_pack()   # lyric look: fonts + word animation
+        self.grain = grain                          # «الجرين» 0–100
+        self.fx = cine_edit.fx_settings(fx if fx is not None else self.pack.get("fx"))
+        self.amount = 1.0
         self.start, self.end = start, end
         self.dur = end - start
         self.lines, self.beats, self.face = lines, beats, face
@@ -246,7 +249,7 @@ class Reel:
         rl = self.reel_lines()
         bt = [(t - self.start, s, d) for t, s, d in self.beats.in_span(self.start, self.end)]
         ctx = cine_edit.Ctx(self.dur, bt, rl, self.beats.period, self.ig, self.seed)
-        return cine_edit.plan(self.style, ctx), rl
+        return cine_edit.plan(self.style, ctx, self.fx), rl
 
     # -- render -------------------------------------------------------------------
     def render(self, out_mp4, out_jpg=None, preview=False, preview_from=0.0, preview_len=5.0):
@@ -273,7 +276,10 @@ class Reel:
                     samples.append(g)
             gains = cine_look.neutral_fix(samples, self.log)
 
-        optics = cine_look.Optics(W, H, seed=self.seed)
+        fxs = plan["fx"]
+        self.amount = fxs["intensity"] / 60.0  # 60 = as designed; 0..100 -> 0..1.67
+        vig = 0.0 if (fxs["clean"] or not fxs["vignette"]) else cine_look.VIGNETTE_LOW
+        optics = cine_look.Optics(W, H, seed=self.seed, grain=self.grain, vignette=vig)
         light = cine_look.Light(W, H)
         bars = plan["opts"].get("bars")
         bar_h = int(300 * k) if bars else 0
@@ -511,7 +517,8 @@ class Reel:
                     st["trail"] = canvas.copy()
                 st["trail"] = cv2.addWeighted(st["trail"], 0.8, canvas, 0.2, 0)
                 ghost = cv2.max(canvas, st["trail"])
-                canvas = cv2.addWeighted(canvas, 1 - 0.5 * p, ghost, 0.5 * p, 0)
+                k = min(0.9, 0.5 * p * self.amount)
+                canvas = cv2.addWeighted(canvas, 1 - k, ghost, k, 0)
         if not any(e["type"] == "echo" and e["t0"] <= t <= e["t1"] for e in plan["effects"]):
             st["trail"] = None
         return canvas
@@ -525,12 +532,15 @@ class Reel:
             add = None
             if e["type"] == "leak":
                 add = light.leak(p, e.get("seed", 1), e.get("strength", 1.0))
+            elif e["type"] == "bokeh":
+                add = light.bokeh(p, e.get("seed", 1), e.get("strength", 1.0))
             elif e["type"] == "burn":
                 add = light.burn(p, e.get("seed", 1), e.get("white", True))
             elif e["type"] == "flash" and not self.ig:
                 v = light.flash(p)
                 add = np.full((light.sh, light.sw, 3), v, np.float32) * np.array([1.0, 0.93, 0.86], np.float32)
             if add is not None:
+                add = add * self.amount
                 extra = add if extra is None else extra + add
         return extra
 

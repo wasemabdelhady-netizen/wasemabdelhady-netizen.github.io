@@ -45,7 +45,10 @@ class PackBar:
         self.cb["values"] = ([CLASSIC] if self.allow_classic else []) + names
 
     def changed(self):
+        keep = (self.custom or {}).get("fx")  # «المؤثرات» survive a pack change unless the pack has its own
         self.custom = None
+        if keep and "fx" not in textfx.get_pack(self.var.get()):
+            self.custom = {"fx": keep}
         self.show_note()
         self.remember()
 
@@ -64,6 +67,69 @@ class PackBar:
         if self.custom:
             p.update(self.custom)
         return p
+
+    def get_fx(self):
+        p = self.get()
+        return dict((p or {}).get("fx") or {})
+
+    def set_fx(self, fx):
+        self.custom = dict(self.custom or {}, fx=dict(fx))
+        if self.var.get() == CLASSIC:
+            self.var.set(textfx.default_pack()["name"])
+        self.show_note()
+        self.remember()
+
+    def effects(self, fx_defaults, labels):
+        """«المؤثرات» window: master clean switch, one toggle per overlay, intensity."""
+        cur = dict(fx_defaults)
+        cur.update(self.get_fx())
+        win = tk.Toplevel(self.frame)
+        win.title("المؤثرات")
+        win.configure(bg="#0a0a0a")
+        win.transient(self.frame.winfo_toplevel())
+        f = ttk.Frame(win, padding=12)
+        f.pack(fill="both", expand=True)
+        v = {k: tk.BooleanVar(value=bool(cur[k])) for k in labels}
+        clean = tk.BooleanVar(value=bool(cur["clean"]))
+        boxes = []
+
+        def sync():
+            for b in boxes:
+                b.configure(state="disabled" if clean.get() else "normal")
+        ttk.Checkbutton(f, text="من غير مؤثرات — جريد وحركة كاميرا وقطع على البيت وكلام بس",
+                        variable=clean, command=sync).grid(row=0, column=0, columnspan=2, sticky="e", pady=(0, 8))
+        r = 1
+        for k, lab in labels.items():
+            b = ttk.Checkbutton(f, text=lab, variable=v[k])
+            b.grid(row=r, column=0, columnspan=2, sticky="e", pady=2)
+            boxes.append(b)
+            r += 1
+        inten = tk.DoubleVar(value=float(cur["intensity"]))
+        val = ttk.Label(f, text="%d" % cur["intensity"], width=4)
+        val.grid(row=r, column=0, sticky="w", pady=(8, 0))
+        sc = ttk.Scale(f, from_=0, to=100, variable=inten, length=240,
+                       command=lambda x: val.configure(text="%d" % float(x)))
+        sc.grid(row=r, column=0, sticky="e", pady=(8, 0), padx=(40, 0))
+        ttk.Label(f, text="قوة المؤثرات").grid(row=r, column=1, sticky="e", pady=(8, 0), padx=(8, 0))
+        boxes.append(sc)
+        r += 1
+
+        def use():
+            out = {k: bool(var.get()) for k, var in v.items()}
+            out.update(clean=bool(clean.get()), intensity=int(round(inten.get())))
+            self.set_fx(out)
+            win.destroy()
+
+        def reset():
+            self.set_fx(dict(fx_defaults))
+            win.destroy()
+        b = ttk.Frame(f)
+        b.grid(row=r, column=0, columnspan=2, sticky="ew", pady=(12, 0))
+        ttk.Button(b, text="استخدم", command=use).pack(side="right", padx=4)
+        ttk.Button(b, text="رجّع الافتراضي", command=reset).pack(side="left")
+        sync()
+        self.fx_win = win  # tests
+        return win
 
     def set(self, name):
         if name in self.cb["values"]:

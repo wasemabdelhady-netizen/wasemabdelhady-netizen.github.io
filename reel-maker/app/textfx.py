@@ -202,7 +202,8 @@ def save_pack(pack):
     os.makedirs(CUSTOM_PACKS, exist_ok=True)
     name = re.sub(r'[\\/:*?"<>|]+', " ", pack["name"]).strip() or "باك"
     path = os.path.join(CUSTOM_PACKS, name + ".json")
-    d = {k: pack[k] for k in ("name", "font", "gold_font", "anim", "line_in", "line_out", "glow") if k in pack}
+    d = {k: pack[k] for k in ("name", "font", "gold_font", "anim", "line_in", "line_out", "glow", "size", "fx")
+         if k in pack}
     with open(path, "w", encoding="utf-8") as fh:
         json.dump(d, fh, ensure_ascii=False, indent=1)
     return path
@@ -318,7 +319,7 @@ class FxLine:
         self.key = key
         self.anim = pack.get("anim", "fade")
         gw, gg, gcol = GLOWS.get(pack.get("glow", "cinematic"), GLOWS["cinematic"])
-        size = int(size * k)
+        size = int(size * k * float(pack.get("size", 1.0)))  # e.g. 0.92 keeps wide fonts on one row
         maxw = int(maxw * k)
         for _ in range(10):
             body = load(pack.get("font", "Cairo"), size)
@@ -342,6 +343,7 @@ class FxLine:
                 break
             size = int(size * 0.9)
         self.size = size
+        self.nrows = len(rows)
         asc, desc = body.getmetrics()
         row_h = (asc + desc) * 1.08
         rtl = engine.is_rtl(text)

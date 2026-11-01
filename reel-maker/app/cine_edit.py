@@ -177,12 +177,13 @@ def build_a(c):
     for b in breaks:
         effects.append(fx("burn", b - 0.32, b + 0.32, white=not c.ig, seed=int(b * 10)))
     # light leaks: on a few line starts, ≥ 5 s apart, not over a burn
-    t_last = -10
+    t_last, n = -10, 0
     for l in c.lines:
         t = l["start"]
         if t - t_last >= 6.0 and all(abs(t - b) > 1.5 for b in breaks) and t < c.dur - 1.5:
-            effects.append(fx("leak", t - 0.2, min(c.dur, t + 1.4), seed=int(t * 7), strength=0.85))
-            t_last = t
+            kind = "leak" if n % 2 == 0 else "bokeh"  # edge light and round blobs take turns
+            effects.append(fx(kind, t - 0.2, min(c.dur, t + 1.4), seed=int(t * 7), strength=0.85))
+            t_last, n = t, n + 1
     return shots, effects
 
 
@@ -345,13 +346,35 @@ def build_d(c):
 STYLES = {"A": build_a, "B": build_b, "C": build_c, "D": build_d}
 
 
-def plan(style, ctx):
+# «المؤثرات»: which overlays a reel may use. Defaults: no light leaks, bokeh or burns;
+# a low vignette; flashes and echo as designed. Saved inside style packs ("fx").
+DEFAULT_FX = dict(clean=False, leaks=False, burn=False, bokeh=False, flash=True, echo=True,
+                  vignette=True, intensity=60)
+FX_TYPES = dict(leak="leaks", bokeh="bokeh", burn="burn", flash="flash", echo="echo")
+CLEAN_DROP = ("freeze", "stamp", "iris", "step")  # «من غير مؤثرات»: only grade, moves, cuts, lyrics
+
+
+def fx_settings(fx=None):
+    out = dict(DEFAULT_FX)
+    out.update({k: v for k, v in (fx or {}).items() if k in DEFAULT_FX})
+    return out
+
+
+def plan(style, ctx, fxs=None):
+    fxs = fx_settings(fxs)
     res = STYLES[style](ctx)
     shots, effects = res[0], res[1]
     opts = res[2] if len(res) > 2 else {}
     shots = [s for s in shots if s["t1"] - s["t0"] > 0.05]
     shots.sort(key=lambda s: s["t0"])
     effects.sort(key=lambda e: e["t0"])
+    effects = [e for e in effects if fxs.get(FX_TYPES.get(e["type"], ""), True)]
+    if fxs["clean"]:
+        effects = [e for e in effects if e["type"] not in CLEAN_DROP and e["type"] not in FX_TYPES]
+        for i, s in enumerate(shots):  # split screen / double exposure become plain shots
+            if s["kind"] in ("split", "double"):
+                shots[i] = shot(s["t0"], s["t1"], framing=dict(s.get("a") or s.get("base") or MED),
+                                push=s.get("push", (1.0, 1.05)))
     if ctx.ig:  # nothing may cover the face in the first second
         effects = [e for e in effects if e["t0"] >= 1.0 or e["type"] in ("echo",)]
         # face lower in the opening shot: clean headroom for the big sound-off hook
@@ -363,7 +386,7 @@ def plan(style, ctx):
         first["push"] = (1.0, 1.03)
         first.pop("punches", None)
         first.pop("dx", None)
-    return dict(style=style, shots=shots, effects=effects, opts=opts)
+    return dict(style=style, shots=shots, effects=effects, opts=opts, fx=fxs)
 
 
 def shot_at(p, t):

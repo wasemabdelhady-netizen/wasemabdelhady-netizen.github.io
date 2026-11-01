@@ -10,7 +10,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 ROOT = os.path.dirname(HERE)
 SETTINGS = os.path.join(ROOT, "settings.json")
-VERSION = "v3.0"
+VERSION = "v3.1"
 
 
 def crash_log(text):
@@ -105,6 +105,21 @@ class App:
         r += 1
         self.v["lfont"].set(pick(fonts, "ArefRuqaa-Bold.ttf", "aref"))
         self.v["hfont"].set(pick(fonts, "Alexandria.ttf", "alexandria"))
+        self.psettings = read_settings()
+        self.packbar = None
+        try:
+            import packui
+
+            def save_pack():
+                data = read_settings()
+                data["manual_pack"] = self.psettings.get("manual_pack")
+                write_settings(data)
+            ttk.Label(f, text="ستايل الكلام  (Style pack)").grid(row=r, column=0, sticky="w", pady=4)
+            self.packbar = packui.PackBar(f, self.psettings, "manual_pack", save_pack, allow_classic=True)
+            self.packbar.frame.grid(row=r, column=1, columnspan=2, sticky="e", pady=4, padx=6)
+            r += 1
+        except Exception:
+            crash_log(traceback.format_exc())
 
         trim = ttk.Frame(f)
         trim.grid(row=r, column=1, sticky="w", padx=6, pady=4)
@@ -207,7 +222,7 @@ class App:
         self.pb["value"] = 0
         job = engine.Job(g["bg"], g["audio"], g["lyrics"], song=g["song"], hook=g["hook"],
                          closing=g["closing"], lyric_font=g["lfont"], hook_font=g["hfont"],
-                         start=s, end=e,
+                         start=s, end=e, pack=self.packbar.get() if self.packbar else None,
                          progress=lambda fr, m="": self.q.put(("p", fr, m)),
                          log=lambda m: self.q.put(("l", m)), cancel=self.cancel)
 

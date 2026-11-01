@@ -545,7 +545,7 @@ class Job:
     def __init__(self, bg, audio, lyrics, song="", hook="", closing=DEFAULT_CLOSING,
                  lyric_font="ArefRuqaa-Bold.ttf", hook_font="Alexandria.ttf",
                  start=None, end=None, out_dir=None, progress=None, log=None, cancel=None,
-                 lines=None, out_name=None, thumb_text=None, bg_crop=None):
+                 lines=None, out_name=None, thumb_text=None, bg_crop=None, pack=None):
         self.bg, self.audio, self.lyrics = bg, audio, lyrics
         self.song, self.hook = song.strip(), hook.strip()
         self.closing = closing.strip() if closing is not None else DEFAULT_CLOSING
@@ -560,6 +560,8 @@ class Job:
         self.preset, self.out_name, self.thumb_text = lines, out_name, thumb_text
         self.word_starts = {}
         self.cover = (bg_crop + "," + COVER) if bg_crop else COVER  # bg_crop: drop letterbox bars
+        self.pack = pack  # textfx style pack (None = the classic lyric look)
+        self.fx = None
 
     # -- timing ---------------------------------------------------------------
     def plan(self):
@@ -667,6 +669,18 @@ class Job:
                                     gold=False, maxw=880, line_gap=1.1)
                           if self.closing else None)
         self.sign = self.signature_sprite()
+        if self.pack:
+            self.build_fx()
+
+    def build_fx(self):
+        """Lines through textfx: words appear with the pack's animation as they are sung."""
+        import textfx
+        lines, spans = [], []
+        for ts, te, blk, starts in self.blocks:
+            times = [(s, starts[i + 1] if i + 1 < len(starts) else te) for i, s in enumerate(starts)]
+            lines.append((" ".join(blk.words), times, -1))
+            spans.append((ts, te))
+        self.fx = textfx.FxSchedule(lines, self.pack, cy=LYRIC_Y, karaoke=False, size=92, spans=spans)
 
     def signature_sprite(self):
         name_f = load_font(self.lyric_font, 50, 700)
@@ -691,7 +705,8 @@ class Job:
     def frame(self, t):
         """Return (key, RGBA image or None). Same key => identical frame."""
         layers = []
-        for ts, te, blk, starts in self.blocks:
+        fx_on = self.fx is not None and self.fx.visible(t)
+        for ts, te, blk, starts in ([] if self.fx is not None else self.blocks):
             if t < ts - 0.01 or t > te + 0.01:
                 continue
             out_a = fade(t, ts, te, fin=0, fout=0.4)
@@ -715,6 +730,9 @@ class Job:
             layers.append((self.close_blk, [a] * n, [dy] * n))
         sign_a = fade(t, 0.4, self.dur + 1, fin=0.8, fout=0) * 0.92
         key = (int(sign_a * 255),) + tuple((id(b), b.key(a, d)) for b, a, d in layers)
+        if fx_on:  # pack text changes every frame while a line is up
+            key += (("fx", int(round(t * FPS))),)
+            layers.append(("fx", t, None))
         return key, layers, sign_a
 
     def compose(self, layers, sign_a):
@@ -725,7 +743,16 @@ class Job:
                 s = s.copy()
                 s.putalpha(s.getchannel("A").point([int(v * sign_a) for v in range(256)]))
             canvas.alpha_composite(s, (0, int(SIGN_Y - s.height / 2)))
+        import_fx = None
         for blk, alphas, dys in layers:
+            if blk == "fx":
+                import textfx as import_fx
+                for arr, x, y, a in self.fx.layers(alphas):
+                    cx, cy = max(0, -x), max(0, -y)  # clip to the frame
+                    arr = arr[cy:H - y if y + arr.shape[0] > H else None, cx:W - x if x + arr.shape[1] > W else None]
+                    if arr.size:
+                        canvas.alpha_composite(import_fx.to_rgba(arr, a), (x + cx, y + cy))
+                continue
             blk.draw(canvas, alphas, dys)
         return canvas
 

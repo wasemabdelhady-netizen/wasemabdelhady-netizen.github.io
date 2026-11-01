@@ -12,9 +12,10 @@ try:
     import cinematic
     import cine_edit
     from cine_look import GREEN_DEFAULT
+    import packui
     CINE_ERR = None
 except Exception:  # missing package in the bundle: the other tabs still work
-    cinematic = cine_edit = None
+    cinematic = cine_edit = packui = None
     GREEN_DEFAULT = 0.86
     CINE_ERR = traceback.format_exc()
 
@@ -111,7 +112,9 @@ class CineTab:
                   command=lambda v: self.green_lbl.configure(text="%.2f" % float(v))).pack(side="right", padx=6)
         ttk.Label(grow, text="تقليل الأخضر").pack(side="right")
         ttk.Button(grow, text="الافتراضي %.2f" % GREEN_DEFAULT, command=lambda: self.set_green(GREEN_DEFAULT)).pack(side="right", padx=6)
-        ttk.Label(grow, text="أقل = أخضر أقل في الصورة (v5 = 0.86)", style="Hint.TLabel").pack(side="left")
+        self.packbar = packui.PackBar(grow, self.settings, "pack", self.save_settings) if packui else None
+        if self.packbar:
+            self.packbar.frame.pack(side="left")
         r += 1
 
         # sync + words row
@@ -345,7 +348,7 @@ class CineTab:
             off, rate = None, 1.0
         p = cinematic.Project(g["footage"], g["master"], g["lyrics"], g["stem"], g["srt"], g["song"], g["out"],
                               n_reels=max(1, int(self.n_reels.get() or 4)), ig=self.ig.get(), deglare=self.glare.get(),
-                              green=self.green_value(),
+                              green=self.green_value(), pack=self.packbar.get() if self.packbar else None,
                               progress=lambda f, msg="": self.q.put(("p", f, msg)),
                               log=lambda msg: self.q.put(("l", msg)), cancel=self.cancel, offset=off)
         p.rate = rate
@@ -479,6 +482,8 @@ class CineTab:
         self.sync_from_entry()
         self.project.ig, self.project.deglare = self.ig.get(), self.glare.get()
         self.project.green = self.green_value()
+        if self.packbar:
+            self.project.pack = self.packbar.get()
         self.project.out_dir = self.v["out"].get().strip() or self.project.out_dir
         self.project.cancel = self.cancel
         self.remember()
@@ -552,6 +557,8 @@ class CineTab:
                     self.set_path(k, at[k])
             if at.get("green"):
                 self.set_green(float(at["green"]))
+            if at.get("pack") and self.packbar:
+                self.packbar.set(at["pack"])
             self.shot("cine-1-inputs.png")
             self.analyze()
         elif step == "render":

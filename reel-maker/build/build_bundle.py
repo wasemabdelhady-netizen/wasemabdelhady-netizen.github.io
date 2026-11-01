@@ -91,7 +91,7 @@ def main():
     # 3. Pillow (Windows wheel, RAQM built in; fribidi loaded at runtime) + the auto-mode stack
     wh = os.path.join(work, "wheels")
     subprocess.check_call([sys.executable, "-m", "pip", "download", "pillow", "faster-whisper",
-                           "rapidfuzz", "opencv-python-headless<5", "msvc-runtime", "onnxruntime", "tkinterdnd2",
+                           "rapidfuzz", "opencv-python-headless<5", "msvc-runtime", "onnxruntime", "tkinterdnd2", "fonttools",
                            "--only-binary=:all:",
                            "--platform", "win_amd64", "--python-version", PY.rsplit(".", 1)[0],
                            "--implementation", "cp", "--abi", "cp" + PYTAG, "-d", wh, "-q"])

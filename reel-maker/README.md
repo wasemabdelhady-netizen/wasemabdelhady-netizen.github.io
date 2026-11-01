@@ -153,9 +153,29 @@
 
 بينزّل موديل توقيت الكلمات (~340 ميجا) ولو مفيش srt موديل السمع (~480 ميجا) — ببروجرس بار، ومرة واحدة بس.
 
+## الباكات — شكل الكلام
+
+في التابات التلاتة فيه **«الباك»**: دوسة واحدة بتختار فونت الكلام + فونت الكلمة الدهبي + أنيميشن الكلمة + دخول وخروج السطر + التوهج، متظبطين مع بعض.
+
+| الباك | الفونت + الدهبي | الأنيميشن |
+| --- | --- | --- |
+| سينمائي (الافتراضي) | Cairo + Aref Ruqaa | Fade |
+| حزين هادي | Cairo + Aref Ruqaa | Fade، توهج خفيف |
+| دراما | El Messiri + Rakkas | Blur-in، توهج دهبي قوي |
+| كلاسيك طرب | Amiri + Aref Ruqaa | Mask reveal |
+| مودرن | Tajawal + Reem Kufi | Slide up |
+| قوي | Lalezar + Lalezar | Pop |
+| رومانسي | Mada + Aref Ruqaa | Wave، توهج دافي |
+| كتابة | Changa + Marhey | Typewriter |
+
+- **«تخصيص…»** يفتح شباك تغيّر فيه أي حاجة لوحدها (فيه معاينة لـ «بقولك ايه كفاية كلام» بكل فونت)، و**«احفظ كباك…»** يحفظ اختيارك كباك جديد في فولدر `packs`.
+- الأنيميشن المتاحة: Fade، Pop، Slide up، Typewriter، Blur-in، Glow pulse، Bounce، Wave، Mask reveal. مكان الكلام ثابت دايماً، وكل كلمة بتخلص قبل اللي بعدها.
+- في اليدوي والأوتوماتيك فيه كمان **«الشكل الكلاسيكي»** = شكل v2 زي ما هو.
+- في السينمائي «معاينة ٥ ث» بتطلع بالباك اللي مختاره.
+
 ## فونتات تانية
 
-حط أي ملف `.ttf` أو `.otf` في فولدر **fonts** وافتح البرنامج تاني — هيظهر في القايمة.
+حط أي ملف `.ttf` أو `.otf` في فولدر **fonts** وافتح البرنامج تاني — هيظهر في القايمة باسمه الحقيقي (لو بيدعم العربي صح: الحروف متشبكة والتشكيل). الفونتات اللي جاية مع البرنامج: Cairo، Aref Ruqaa، Tajawal، Amiri، Reem Kufi، Lalezar، Marhey، Rakkas، El Messiri، Changa، Lemonada، Mada، Alexandria.
 
 ## لو حصلت مشكلة
 
@@ -166,6 +186,6 @@
 - الأوتوماتيك: لو تحميل الموديل فشل، اتأكد من النت ودوس «حلّل» تاني. لو التوقيت بعيد خالص، جرّب تحط الفوكال ستيم أو موديل `medium`، أو صلّح من شاشة المراجعة.
 
 ---
-الفونتات Aref Ruqaa و Alexandria و Cairo و Noto Color Emoji تحت رخصة SIL OFL. ffmpeg تحت رخصة GPL (`ffmpeg/LICENSE.txt`).
+كل الفونتات (Aref Ruqaa، Alexandria، Cairo، Tajawal، Amiri، Reem Kufi، Lalezar، Marhey، Rakkas، El Messiri، Changa، Lemonada، Mada، Noto Color Emoji) تحت رخصة SIL OFL — الرخص في فولدر fonts. ffmpeg تحت رخصة GPL (`ffmpeg/LICENSE.txt`).
 موديل السمع: faster-whisper / Whisper (MIT). موديل التوقيت: wav2vec2-large-xlsr-53-arabic (Apache 2.0). كشف الوش: YuNet (MIT).
 OpenCV و rapidfuzz و CTranslate2 و onnxruntime و tkinterdnd2 تحت رخصهم (Apache / MIT).

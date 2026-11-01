@@ -216,8 +216,11 @@ def premul(img):
     return a
 
 
-def word_sprite(word, font, fill, glow=None, pad_k=0.7):
-    """Word with dark outline + shadow (+ optional glow). Returns (RGBA image, ox, oy, adv)."""
+def word_sprite(word, font, fill, glow=None, pad_k=None):
+    """Word with dark outline + shadow (+ optional glow). Returns (RGBA image, ox, oy, adv).
+    The box is padded so the widest glow (3 sigma) never touches its edge."""
+    if pad_k is None:
+        pad_k = 1.45 if glow and glow[1] > 0 else 0.7
     size = font.size
     asc, desc = font.getmetrics()
     kw = engine._text_kw(word)
@@ -251,7 +254,7 @@ def word_sprite(word, font, fill, glow=None, pad_k=0.7):
     return Image.alpha_composite(out, face), pad, base, adv
 
 
-def glow_only(word, font, color, strength, pad_k=0.7):
+def glow_only(word, font, color, strength, pad_k=2.2):
     """Just the glow of a word (for the Glow pulse animation)."""
     size = font.size
     asc, desc = font.getmetrics()
@@ -307,7 +310,6 @@ class FxLine:
     karaoke=True: the whole line shows dim first (cinematic); False: words appear as sung."""
 
     def __init__(self, text, times, key, pack, k=1.0, cy=1400, maxw=960, size=101, W=1080, karaoke=True):
-        import cv2  # noqa: F401  (needed by draw)
         self.text, self.times, self.pack, self.karaoke = text, times, pack, karaoke
         words = text.split()
         self.words = [w.replace("*", "") for w in words]
@@ -323,15 +325,16 @@ class FxLine:
             keyf = load(pack.get("gold_font", "Aref Ruqaa"), int(size * 1.16))  # Ruqaa: ×1.16×1.10 ≈ the v3.0 look
             space = body.getlength(" ") * 1.2
             lit, dim, fonts = [], [], []
+            pk = 2.2 if self.anim == "glow" else 1.45  # one box size for every state of a word
             for i, w in enumerate(self.words):
                 f = keyf if i == key else body
                 fonts.append(f)
                 if i == key:
-                    lit.append(word_sprite(w, f, GOLD, glow=(GOLD_GLOW, gg)))
-                    dim.append(word_sprite(w, f, DIM_GOLD))
+                    lit.append(word_sprite(w, f, GOLD, glow=(GOLD_GLOW, gg), pad_k=pk))
+                    dim.append(word_sprite(w, f, DIM_GOLD, pad_k=pk))
                 else:
-                    lit.append(word_sprite(w, f, WHITE, glow=(gcol, gw) if gw > 0 else None))
-                    dim.append(word_sprite(w, f, DIM_FILL))
+                    lit.append(word_sprite(w, f, WHITE, glow=(gcol, gw) if gw > 0 else None, pad_k=pk))
+                    dim.append(word_sprite(w, f, DIM_FILL, pad_k=pk))
             advs = [s[3] for s in lit]
             soft = {i for i, w in enumerate(self.words) if w and w[-1] in "…،,.؟?!:؛"}
             rows = engine.wrap_rows(advs, space, maxw, soft)
@@ -368,11 +371,11 @@ class FxLine:
                 cuts, total = letter_cuts(self.words[i], fonts[i])
                 it["cuts"], it["total"] = cuts, total
             if self.anim == "glow":
-                it["glow"] = premul(glow_only(self.words[i], fonts[i], GOLD_GLOW, 1.6))
+                it["glow"] = premul(glow_only(self.words[i], fonts[i], GOLD_GLOW, 1.6, pad_k=pk))
             if self.anim == "blur":
                 it["blurs"] = self._blurs(it["lit"], size)
             self.items.append(it)
-        pad = int(size * 0.5)
+        pad = int(size * 0.2)
         self.x0 = min(it["x"] for it in self.items) - pad
         self.y0 = min(it["y"] for it in self.items) - pad
         self.x1 = max(it["x"] + it["w"] for it in self.items) + pad
@@ -464,7 +467,6 @@ class FxLine:
             s = self.times[i][0]
             p = (t - s) / self.dur[i]
             x, y = it["x"] - self.x0, it["y"] - self.y0
-            h, w = it["h"], it["w"]
             if p <= 0:
                 if self.karaoke:
                     _over(canvas, it["dim"], x, y)
@@ -515,10 +517,16 @@ class FxSchedule:
 
     LINE_IN_S, LINE_OUT_S = 0.24, 0.3
 
-    def __init__(self, lines, pack, k=1.0, cy=1400, W=1080, karaoke=True, size=101):
+    def __init__(self, lines, pack, k=1.0, cy=1400, W=1080, karaoke=True, size=101, spans=None):
+        """lines: [(text, [(s, e)], key)]; spans: optional [(show, hide)] per line (lyric mode
+        already knows when each line is on screen)."""
         self.pack, self.k = pack, k
         self.items = []
         n = len(lines)
+        if spans is not None:
+            for (text, times, key), (show, hide) in zip(lines, spans):
+                self.items.append((FxLine(text, times, key, pack, k, cy, W=W, karaoke=karaoke, size=size), show, hide))
+            return
         for i, (text, times, key) in enumerate(lines):
             show = times[0][0] - self.LINE_IN_S - 0.08
             hide = times[-1][1] + 0.45
@@ -532,7 +540,17 @@ class FxSchedule:
             self.items.append((FxLine(text, times, key, pack, k, cy, W=W, karaoke=karaoke, size=size), show, hide))
 
     def draw(self, frame, t, alpha=1.0):
+        for arr, x, y, a in self.layers(t, alpha):
+            blend(frame, arr, x, y, a)
+        return frame
+
+    def visible(self, t):
+        return any(show <= t <= hide for _, show, hide in self.items)
+
+    def layers(self, t, alpha=1.0):
+        """[(premultiplied patch, x, y, alpha)] on screen at t."""
         import cv2
+        out = []
         lin, lout = self.pack.get("line_in", "fade"), self.pack.get("line_out", "fade")
         for fl, show, hide in self.items:
             if not (show <= t <= hide):
@@ -554,8 +572,16 @@ class FxSchedule:
             arr = fl.layer(t)
             if blur > 0.4:
                 arr = np.stack([cv2.GaussianBlur(arr[..., c], (0, 0), blur) for c in range(4)], axis=-1)
-            blend(frame, arr, fl.x0, fl.y0 + dy, a)
-        return frame
+            out.append((arr, fl.x0, fl.y0 + dy, a))
+        return out
+
+
+def to_rgba(arr, alpha=1.0):
+    """Premultiplied float patch -> straight-alpha PIL RGBA (for the lyric-mode overlay)."""
+    a = np.clip(arr[..., 3:4] * alpha, 0, 1)
+    rgb = np.where(arr[..., 3:4] > 1e-4, arr[..., :3] / np.maximum(arr[..., 3:4], 1e-4), 0)
+    out = np.concatenate([np.clip(rgb, 0, 1), a], axis=-1)
+    return Image.fromarray((out * 255 + 0.5).astype(np.uint8), "RGBA")
 
 
 def preview_image(pack, width=520, height=110, font=None, gold_font=None, t_frac=0.6):
@@ -567,8 +593,8 @@ def preview_image(pack, width=520, height=110, font=None, gold_font=None, t_frac
         p["gold_font"] = gold_font
     words = SAMPLE.split()
     times = [(0.2 + i * 0.5, 0.6 + i * 0.5) for i in range(len(words))]
-    k = width / 1080.0 * 1.4
-    fl = FxLine(SAMPLE, times, -1, p, k=k, cy=height / 2, maxw=width / k * 0.95 / 1.0, size=101, W=width)
+    k = height / 240.0  # one row, ~40 % of the box height
+    fl = FxLine(SAMPLE, times, -1, p, k=k, cy=height / 2, maxw=width / k * 0.94, size=101, W=width)
     t = times[2][0] + fl.dur[2] * t_frac
     frame = np.zeros((height, width, 3), np.uint8)
     frame[:] = (26, 23, 20)

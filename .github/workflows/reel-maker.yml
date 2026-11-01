@@ -80,6 +80,13 @@ jobs:
           $py = "C:\تجربة ريلز\ReelMaker\python\python.exe"
           & $py "C:\تجربة ريلز\ReelMaker\app\selftest_cine.py" "C:\تجربة ريلز\عينة سينمائي" --quick --align
           if ($LASTEXITCODE) { exit 1 }
+      - name: Style packs, fonts and word animations (Arabic shaping, fixed layout, lyric mode)
+        shell: pwsh
+        run: |
+          $env:PYTHONIOENCODING = "utf-8"
+          $py = "C:\تجربة ريلز\ReelMaker\python\python.exe"
+          & $py "C:\تجربة ريلز\ReelMaker\app\selftest_packs.py" "C:\تجربة ريلز\عينة باكات"
+          if ($LASTEXITCODE) { exit 1 }
       - name: START.bat — cinematic tab runs analyse → reels → render
         shell: pwsh
         run: |
@@ -137,6 +144,7 @@ jobs:
           Copy-Item "C:\تجربة ريلز\واجهة أوتو\shots\*.png" results -ErrorAction SilentlyContinue
           Get-ChildItem -LiteralPath "C:\تجربة ريلز\عينة أوتو\output" -Recurse -File -ErrorAction SilentlyContinue | Copy-Item -Destination results
           Copy-Item "C:\تجربة ريلز\واجهة سينمائي\*.png" results -ErrorAction SilentlyContinue
+          Get-ChildItem -LiteralPath "C:\تجربة ريلز\عينة باكات" -File -ErrorAction SilentlyContinue | Where-Object { $_.Extension -in ".png", ".mp4" } | Copy-Item -Destination results
           Get-ChildItem -LiteralPath "C:\تجربة ريلز\عينة سينمائي\frames" -File -ErrorAction SilentlyContinue | Copy-Item -Destination results
           Get-ChildItem -LiteralPath "C:\تجربة ريلز\عينة سينمائي" -Recurse -File -Filter *.words.json -ErrorAction SilentlyContinue | Copy-Item -Destination results
           Get-ChildItem -LiteralPath "C:\تجربة ريلز\ReelMaker\output" -Recurse -File -ErrorAction SilentlyContinue | Where-Object { $_.Extension -in ".mp4", ".jpg" } | Copy-Item -Destination results
@@ -161,6 +169,6 @@ jobs:
           # tag on main: the token may not tag a commit that changes workflow files;
           # the zip itself is built from this run's commit ($GITHUB_SHA)
           gh release create "$tag" -R "$GITHUB_REPOSITORY" --target main \
-            --title "Reel Maker v3.0 (Windows)" --prerelease \
-            --notes "v3.0 — جديد: تاب «سينمائي - Cinematic» (لقطات غُنا + ماستر + كلمات ← ريلز متقطّعة بـ 4 ستايلات، كاريوكي، ونسخة إنستجرام/فيسبوك). أول مرة البرنامج بينزّل موديل توقيت الكلمات (~340 ميجا). حمّل ReelMaker-windows.zip، فكّه، ودوس START.bat. أول مرة في الأوتوماتيك البرنامج بينزّل موديل السمع (~500 ميجا) — محتاج نت مرة واحدة. التفاصيل في README.md جوه الفولدر." \
+            --title "Reel Maker v3.1 (Windows)" --prerelease \
+            --notes "v3.1 — جديد: 8 باكات ستايل للكلام (فونت + فونت دهبي + أنيميشن)، 13 فونت عربي، 9 أنيميشن للكلمات، وتخصيص واحفظ كباك — في التابات التلاتة. v3.0: تاب «سينمائي - Cinematic» (لقطات غُنا + ماستر + كلمات ← ريلز متقطّعة بـ 4 ستايلات، كاريوكي، ونسخة إنستجرام/فيسبوك). أول مرة البرنامج بينزّل موديل توقيت الكلمات (~340 ميجا). حمّل ReelMaker-windows.zip، فكّه، ودوس START.bat. أول مرة في الأوتوماتيك البرنامج بينزّل موديل السمع (~500 ميجا) — محتاج نت مرة واحدة. التفاصيل في README.md جوه الفولدر." \
             ReelMaker-windows/ReelMaker-windows.zip selftest-results/selftest-results.zip

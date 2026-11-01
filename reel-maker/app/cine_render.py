@@ -17,6 +17,7 @@ import numpy as np
 import cine_edit
 import cine_look
 import cine_text
+import textfx
 import engine
 
 FPS = 30
@@ -214,9 +215,11 @@ class Reel:
 
     def __init__(self, footage, master, offset, start, end, lines, beats, face, style,
                  song="", ig=False, deglare=False, hook_text=None, hook_key=-1,
-                 log=None, progress=None, cancel=None, seed=1, rate=1.0, green=cine_look.GREEN_DEFAULT):
+                 log=None, progress=None, cancel=None, seed=1, rate=1.0, green=cine_look.GREEN_DEFAULT,
+                 pack=None):
         self.footage, self.master, self.offset, self.rate = footage, master, offset, rate
         self.green = green
+        self.pack = pack or textfx.default_pack()   # lyric look: fonts + word animation
         self.start, self.end = start, end
         self.dur = end - start
         self.lines, self.beats, self.face = lines, beats, face
@@ -276,12 +279,13 @@ class Reel:
         bar_h = int(300 * k) if bars else 0
         band = (bar_h, H - bar_h)
         text_cy = int(LYRIC_Y * k)  # mid-chest in every framing (below the chin, see cine_edit)
-        sched = cine_text.Schedule([(l["text"], l["words"], l["key"]) for l in rl], k=k, cy=text_cy, W=W)
+        sched = textfx.FxSchedule([(l["text"], l["words"], l["key"]) for l in rl], self.pack, k=k, cy=text_cy, W=W)
         hook = None
         if self.ig:
             ht = self.hook_text or (rl[0]["text"] if rl else "")
             if ht:
                 hook = cine_text.Hook(ht, self.hook_key if self.hook_text else (rl[0]["key"] if rl else -1),
+                                      font=textfx.font_file(self.pack.get("font", "Cairo")),
                                       k=k, cy=int((380 if not bars else 420) * k), W=W)
         stamps = {}
         for e in plan["effects"]:
@@ -577,7 +581,8 @@ class Reel:
         text = self.hook_text or (rl[0]["text"] if rl else "")
         key = self.hook_key if self.hook_text else (rl[0]["key"] if rl else -1)
         if text:
-            h = cine_text.Hook(text, key, k=1.15, cy=1420, until=99)
+            h = cine_text.Hook(text, key, k=1.15, cy=1420, until=99,
+                               font=textfx.font_file(self.pack.get("font", "Cairo")))
             h.draw(img, 0.0)
         sig, x, dy = cine_text.signature(self.song, 1.0, 1080)
         cine_text.blend(img, sig, x, 1585 + dy, 0.95)

@@ -233,13 +233,13 @@ class Schedule:
 class Hook:
     """Big sound-off hook line for the first second(s) (Instagram/Facebook version)."""
 
-    def __init__(self, text, key=-1, k=1.0, cy=380, W=1080, until=2.6):
+    def __init__(self, text, key=-1, k=1.0, cy=380, W=1080, until=2.6, font=BODY_FONT):
         words = text.split()
         if key is None or key < 0:
             key = engine.pick_gold(words) if len(words) > 1 else -1
         clean = " ".join(("*%s*" % w.replace("*", "")) if i == key else w.replace("*", "")
                          for i, w in enumerate(words))
-        blk = engine.TextBlock(clean, BODY_FONT, int(104 * k), cy, weight=900, gold=key >= 0,
+        blk = engine.TextBlock(clean, font, int(104 * k), cy, weight=900, gold=key >= 0,
                                maxw=int(960 * k), max_rows=2, line_gap=1.0, shadow=0.85)
         canvas = Image.new("RGBA", (W, int(cy * 2 + 200 * k)), (0, 0, 0, 0))
         blk.draw(canvas, [1] * len(blk.items), [0] * len(blk.items))

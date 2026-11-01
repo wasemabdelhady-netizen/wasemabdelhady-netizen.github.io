@@ -927,6 +927,7 @@ class Project:
         self.log = log or (lambda m: print(m, flush=True))
         self.cancel = cancel or threading.Event()
         self.asr = asr  # optional callable(audio_path, texts) -> words (tests)
+        self.pack = None  # textfx style pack (None = classic lyric look)
         self.lines, self.sections = [], []
         self.total = 0.0
         self.offset = None
@@ -1094,7 +1095,8 @@ class Project:
                                  progress=lambda f, m="": prog(0.1 + 0.9 * f, "ريل %d من %d: %s — %s" % (k + 1, n, sec["name"], m)),
                                  log=lambda m: None, cancel=self.cancel,
                                  lines=self.reel_lines(sec, s, e), out_name=base,
-                                 thumb_text=hook or self.lines[sec["i0"]].text, bg_crop=bg_crop)
+                                 thumb_text=hook or self.lines[sec["i0"]].text, bg_crop=bg_crop,
+                                 pack=self.pack)
                 mp4, jpg = job.run()
                 results.append(dict(name=sec["name"], start=s, end=e, hook=hook, mp4=mp4, jpg=jpg,
                                     first=self.lines[sec["i0"]].text))

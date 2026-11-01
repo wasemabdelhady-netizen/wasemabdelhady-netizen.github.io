@@ -193,6 +193,14 @@ class AutoTab:
         self.v["lfont"].set(pick(fonts, "ArefRuqaa-Bold.ttf", "aref"))
         self.v["hfont"].set(pick(fonts, "Alexandria.ttf", "alexandria"))
 
+        self.packbar = None
+        try:
+            import packui
+            self.packbar = packui.PackBar(f, self.settings, "pack", self.save_settings, allow_classic=True)
+            self.packbar.frame.grid(row=r, column=0, columnspan=3, sticky="e", pady=4)
+            r += 1
+        except Exception:  # textfx missing: classic look only
+            self.packbar = None
         opts = ttk.Frame(f)
         opts.grid(row=r, column=0, columnspan=3, sticky="e", pady=6)
         ttk.Checkbutton(opts, text="استخدم التوقيت المتسجّل لو موجود", variable=self.reuse).pack(side="right", padx=(12, 0))
@@ -599,6 +607,7 @@ class AutoTab:
         pr = self.project
         pr.lines.sort(key=lambda l: l.start)
         pr.cancel = self.cancel
+        pr.pack = self.packbar.get() if self.packbar else None
         self.remember()
         self.log("— بعمل %d ريل…" % sum(1 for s in pr.sections if s["checked"]))
         self.run_bg("render", pr.render)

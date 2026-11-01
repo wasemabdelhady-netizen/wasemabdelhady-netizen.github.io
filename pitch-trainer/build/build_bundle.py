@@ -5,11 +5,14 @@
 Produces <out_dir>/PitchTrainer/ and <out_dir>/PitchTrainer-windows.zip with:
   python/   embeddable CPython + tkinter (from python.org tcltk.msi) + numpy,
             sounddevice (PortAudio DLL inside the wheel), cffi
+  ffmpeg/   ffmpeg.exe (BtbN GPL build) — reads MP3/M4A stems in song mode
   app/ START.bat README.md
 Needs: internet, msitools (msiextract), pip.
 """
 import glob
+import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -30,6 +33,12 @@ def get(url, dest):
     with urllib.request.urlopen(req, timeout=300) as r, open(dest, "wb") as f:
         shutil.copyfileobj(r, f)
     return dest
+
+
+def text(url):
+    tmp = get(url, "/tmp/_page")
+    with open(tmp, encoding="utf-8", errors="replace") as f:
+        return f.read()
 
 
 def find(root, name):
@@ -83,6 +92,18 @@ def main():
         print("  +", os.path.basename(w))
         zipfile.ZipFile(w).extractall(site)
     find(site, "libportaudio64bit.dll")
+
+    # 4. ffmpeg (decodes MP3/M4A stems)
+    rel = json.loads(text("https://api.github.com/repos/BtbN/FFmpeg-Builds/releases/latest"))
+    asset = [a for a in rel["assets"]
+             if re.fullmatch(r"ffmpeg-n7\.1-latest-win64-gpl-7\.1\.zip", a["name"])] or \
+            [a for a in rel["assets"] if re.fullmatch(r"ffmpeg-n\d+\.\d+-latest-win64-gpl-\d+\.\d+\.zip", a["name"])]
+    fz = get(asset[0]["browser_download_url"], os.path.join(work, "ffmpeg.zip"))
+    fx = os.path.join(work, "ffmpeg")
+    zipfile.ZipFile(fz).extractall(fx)
+    os.makedirs(os.path.join(dst, "ffmpeg"))
+    shutil.copy2(find(fx, "ffmpeg.exe"), os.path.join(dst, "ffmpeg", "ffmpeg.exe"))
+    shutil.copy2(find(fx, "LICENSE.txt"), os.path.join(dst, "ffmpeg", "LICENSE.txt"))
 
     # 6. app, docs
     shutil.copytree(os.path.join(SRC, "app"), os.path.join(dst, "app"),

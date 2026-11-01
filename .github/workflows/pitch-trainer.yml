@@ -21,6 +21,8 @@ jobs:
       - uses: actions/checkout@v4
       - run: sudo apt-get update -qq && sudo apt-get install -y -qq msitools
       - run: python3 pitch-trainer/build/build_bundle.py dist
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - uses: actions/upload-artifact@v4
         with:
           name: PitchTrainer-windows
@@ -41,25 +43,30 @@ jobs:
           New-Item -ItemType Directory -Force $root | Out-Null
           Expand-Archive PitchTrainer-windows.zip -DestinationPath $root
           Get-ChildItem "$root\PitchTrainer"
-      - name: Python, tkinter, numpy, sounddevice (PortAudio)
+      - name: Python, tkinter, numpy, sounddevice (PortAudio), ffmpeg
         shell: pwsh
         run: |
           $py = "C:\تجربة صوت\PitchTrainer\python\python.exe"
           & $py -c "import sys, tkinter, numpy, sounddevice as sd; print(sys.version); print('numpy', numpy.__version__, 'sounddevice', sd.__version__, sd.get_portaudio_version()[1]); print('host APIs:', [a['name'] for a in sd.query_hostapis()]); print('devices on this runner:', len(sd.query_devices()))"
           if ($LASTEXITCODE) { exit 1 }
-      - name: Pitch detection on synthetic tones, exercises, maqam, scoring, WAV, history
+          & "C:\تجربة صوت\PitchTrainer\ffmpeg\ffmpeg.exe" -hide_banner -version | Select-Object -First 1
+          if ($LASTEXITCODE) { exit 1 }
+      - name: Self-test — detection, every mode, scoring accuracy vs truth, calibration, song extraction (MP3), report
         shell: pwsh
         run: |
           $env:PYTHONIOENCODING = "utf-8"
           $py = "C:\تجربة صوت\PitchTrainer\python\python.exe"
           & $py "C:\تجربة صوت\PitchTrainer\app\selftest.py" "C:\تجربة صوت\عينة"
           if ($LASTEXITCODE) { exit 1 }
-      - name: START.bat — the window runs two sessions sung by a synthetic singer
+      - name: START.bat — the window runs every new mode sung by a synthetic singer (screenshots per mode)
         shell: pwsh
         run: |
           $dir = "C:\تجربة صوت\PitchTrainer"
           $out = "C:\تجربة صوت\عينة\gui-result.json"
-          $argline = "/c `"`"$dir\START.bat`" --autotest `"$out`"`""
+          $shots = "C:\تجربة صوت\لقطات"
+          New-Item -ItemType Directory -Force $shots | Out-Null
+          $env:PITCHTRAINER_REPORT_DIR = "C:\تجربة صوت\التقارير - Reports"
+          $argline = "/c `"`"$dir\START.bat`" --autotest `"$out`" `"$shots`"`""
           Start-Process -FilePath "cmd.exe" -ArgumentList $argline -WorkingDirectory $dir
           Add-Type -AssemblyName System.Windows.Forms, System.Drawing
           function Shot($p) {
@@ -68,35 +75,50 @@ jobs:
             [System.Drawing.Graphics]::FromImage($bmp).CopyFromScreen($b.Location, [System.Drawing.Point]::Empty, $b.Size)
             $bmp.Save($p)
           }
-          Start-Sleep -Seconds 14
-          Shot "C:\تجربة صوت\عينة\gui-live.png"
-          $t = 0
-          while (-not (Test-Path $out) -and $t -lt 180) { Start-Sleep -Seconds 3; $t += 3 }
+          $sw = [Diagnostics.Stopwatch]::StartNew()
+          while (-not (Test-Path $out) -and $sw.Elapsed.TotalSeconds -lt 900) {
+            Get-ChildItem $shots -Filter *.req -ErrorAction SilentlyContinue | ForEach-Object {
+              Shot (Join-Path $shots ($_.BaseName + ".png")); Remove-Item $_.FullName }
+            if (Test-Path "$dir\error.log") { break }
+            Start-Sleep -Milliseconds 250
+          }
           Start-Sleep -Seconds 2
-          Shot "C:\تجربة صوت\عينة\gui-progress.png"
+          Get-ChildItem $shots -Filter *.req -ErrorAction SilentlyContinue | ForEach-Object { Shot (Join-Path $shots ($_.BaseName + ".png")); Remove-Item $_.FullName }
           Stop-Process -Name pythonw -Force -ErrorAction SilentlyContinue
           if (Test-Path "$dir\error.log") { Get-Content "$dir\error.log" -Encoding utf8; exit 1 }
           if (-not (Test-Path $out)) { Write-Error "GUI produced no result"; exit 1 }
           $r = Get-Content $out -Encoding utf8 -Raw | ConvertFrom-Json
-          $r | ConvertTo-Json -Depth 4
-          if ($r.sessions.Count -ne 2) { Write-Error "expected 2 sessions"; exit 1 }
+          $r.sessions | Select-Object mode, notes, exact_pct, close_pct, note_avg_cents, lat_ms, ref_plays, steps, truth_n, truth_mae, truth_max, max_target | Format-Table -AutoSize | Out-String -Width 200
+          $r.calib | ConvertTo-Json
+          $fail = @()
+          if ([math]::Abs($r.calib.lat - 0.135) -gt 0.02) { $fail += "calibration $($r.calib.lat)" }
+          $modes = ($r.sessions | ForEach-Object { $_.mode }) -join ","
+          if ($modes -ne "drone,callresp,song,onset,stability,leaps,ajnas") { $fail += "modes $modes" }
           foreach ($s in $r.sessions) {
-            if ($s.max_target -gt 67) { Write-Error "target above G4"; exit 1 }
-            if ($s.ref_plays -ne $s.steps) { Write-Error "reference not played before every step"; exit 1 }
-            if ($s.in_tune_pct -lt 90 -or $s.avg_cents -gt 10) { Write-Error "score off for the synthetic singer"; exit 1 }
+            if ($s.max_target -gt 67.0001) { $fail += "$($s.mode): target above G4" }
+            if ($s.notes -lt 2) { $fail += "$($s.mode): no notes scored" }
+            if ($s.truth_n -gt 0 -and $s.truth_mae -gt 2) { $fail += "$($s.mode): scoring off by $($s.truth_mae)c" }
+            if (@("callresp","onset","stability","leaps","ajnas") -contains $s.mode -and $s.ref_plays -ne $s.steps) { $fail += "$($s.mode): reference not played" }
+            if ($s.mode -eq "song" -and $s.ref_plays -ne 1) { $fail += "song not played" }
           }
-          if ([math]::Abs($r.sessions[0].bias_cents - 6) -gt 2 -or [math]::Abs($r.sessions[1].bias_cents + 4) -gt 2) { Write-Error "bias not detected"; exit 1 }
-          if (-not $r.sessions[0].highest.StartsWith("G4")) { Write-Error "highest stable note should be G4"; exit 1 }
-          if (-not (Test-Path $r.sessions[0].wav)) { Write-Error "WAV recording missing"; exit 1 }
-          if (-not (Test-Path $r.history_file)) { Write-Error "history missing"; exit 1 }
-          if ($r.history_days.Count -lt 1) { Write-Error "no daily progress row"; exit 1 }
-          Get-ChildItem "$dir\recordings", "$dir\history"
+          $st = $r.sessions | Where-Object { $_.mode -eq "stability" }
+          if ([math]::Abs($st.stab.vib_rate - 5.5) -gt 0.4 -or $st.stab.end_drop_c -gt -18) { $fail += "stability analysis" }
+          $lp = $r.sessions | Where-Object { $_.mode -eq "leaps" }
+          if ($lp.leaps.ok_pct -lt 100) { $fail += "leaps" }
+          $aj = $r.sessions | Where-Object { $_.mode -eq "ajnas" }
+          if (-not $aj.blind) { $fail += "blind flag" }
+          $dr = $r.sessions | Where-Object { $_.mode -eq "drone" }
+          if (-not (Test-Path $dr.wav)) { $fail += "WAV recording missing" }
+          if (-not (Test-Path $r.report)) { $fail += "report missing" }
+          if ($fail.Count) { $fail | ForEach-Object { Write-Error $_ }; exit 1 }
+          Get-Content $r.report -Encoding utf8
+          Get-ChildItem $shots
       - name: Collect results
         if: always()
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force results | Out-Null
-          Copy-Item "C:\تجربة صوت\عينة\gui-*.png", "C:\تجربة صوت\عينة\gui-result.json", "C:\تجربة صوت\PitchTrainer\recordings\*.wav" results -ErrorAction SilentlyContinue
+          Copy-Item "C:\تجربة صوت\لقطات\*.png", "C:\تجربة صوت\عينة\gui-result.json", "C:\تجربة صوت\التقارير - Reports\*.md" results -ErrorAction SilentlyContinue
           Compress-Archive -Path results\* -DestinationPath selftest-results.zip -Force
       - uses: actions/upload-artifact@v4
         if: always()

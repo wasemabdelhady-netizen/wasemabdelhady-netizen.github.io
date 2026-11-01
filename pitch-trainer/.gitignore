@@ -4,3 +4,5 @@ settings.json
 error.log
 __pycache__/
 python/
+ffmpeg/
+reports/

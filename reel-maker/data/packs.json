@@ -1,0 +1,86 @@
+{
+ "version": 1,
+ "packs": [
+  {
+   "id": "sad",
+   "name": "حزين هادي",
+   "font": "Cairo",
+   "gold_font": "Aref Ruqaa",
+   "anim": "fade",
+   "line_in": "fade",
+   "line_out": "fade",
+   "glow": "soft"
+  },
+  {
+   "id": "drama",
+   "name": "دراما",
+   "font": "El Messiri",
+   "gold_font": "Rakkas",
+   "anim": "blur",
+   "line_in": "fade",
+   "line_out": "blur",
+   "glow": "strong"
+  },
+  {
+   "id": "tarab",
+   "name": "كلاسيك طرب",
+   "font": "Amiri",
+   "gold_font": "Aref Ruqaa",
+   "anim": "mask",
+   "line_in": "fade",
+   "line_out": "fade",
+   "glow": "cinematic"
+  },
+  {
+   "id": "modern",
+   "name": "مودرن",
+   "font": "Tajawal",
+   "gold_font": "Reem Kufi",
+   "anim": "slide",
+   "line_in": "slide",
+   "line_out": "fade",
+   "glow": "soft"
+  },
+  {
+   "id": "bold",
+   "name": "قوي",
+   "font": "Lalezar",
+   "gold_font": "Lalezar",
+   "anim": "pop",
+   "line_in": "none",
+   "line_out": "fade",
+   "glow": "strong"
+  },
+  {
+   "id": "romantic",
+   "name": "رومانسي",
+   "font": "Mada",
+   "gold_font": "Aref Ruqaa",
+   "anim": "wave",
+   "line_in": "fade",
+   "line_out": "fade",
+   "glow": "warm"
+  },
+  {
+   "id": "writing",
+   "name": "كتابة",
+   "font": "Changa",
+   "gold_font": "Marhey",
+   "anim": "type",
+   "line_in": "none",
+   "line_out": "fade",
+   "glow": "soft"
+  },
+  {
+   "id": "cinematic",
+   "name": "سينمائي",
+   "font": "Cairo",
+   "gold_font": "Aref Ruqaa",
+   "anim": "fade",
+   "line_in": "fade",
+   "line_out": "fade",
+   "glow": "cinematic",
+   "default": true
+  }
+ ]
+}

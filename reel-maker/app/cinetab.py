@@ -11,9 +11,11 @@ from tkinter import filedialog, messagebox, ttk
 try:
     import cinematic
     import cine_edit
+    from cine_look import GREEN_DEFAULT
     CINE_ERR = None
 except Exception:  # missing package in the bundle: the other tabs still work
     cinematic = cine_edit = None
+    GREEN_DEFAULT = 0.86
     CINE_ERR = traceback.format_exc()
 
 VIDEO_EXT = (".mp4", ".mov", ".m4v", ".mkv", ".mts", ".avi")
@@ -99,6 +101,19 @@ class CineTab:
         self.go_an.pack(side="left", fill="x", expand=True, padx=(0, 10))
         r += 1
 
+        # green gain of the grade, remembered per footage
+        grow = ttk.Frame(f)
+        grow.grid(row=r, column=0, columnspan=3, sticky="ew", pady=(2, 0))
+        self.green = tk.DoubleVar(value=GREEN_DEFAULT)
+        self.green_lbl = ttk.Label(grow, text="%.2f" % GREEN_DEFAULT, width=5)
+        self.green_lbl.pack(side="right")
+        ttk.Scale(grow, from_=1.00, to=0.80, variable=self.green, orient="horizontal", length=220,
+                  command=lambda v: self.green_lbl.configure(text="%.2f" % float(v))).pack(side="right", padx=6)
+        ttk.Label(grow, text="تقليل الأخضر").pack(side="right")
+        ttk.Button(grow, text="الافتراضي %.2f" % GREEN_DEFAULT, command=lambda: self.set_green(GREEN_DEFAULT)).pack(side="right", padx=6)
+        ttk.Label(grow, text="أقل = أخضر أقل في الصورة (v5 = 0.86)", style="Hint.TLabel").pack(side="left")
+        r += 1
+
         # sync + words row
         sync = ttk.Frame(f)
         sync.grid(row=r, column=0, columnspan=3, sticky="ew", pady=(4, 0))
@@ -158,7 +173,7 @@ class CineTab:
         self.status = ttk.Label(f, text="جاهز", style="Hint.TLabel", anchor="e")
         self.status.grid(row=r, column=0, columnspan=3, sticky="ew")
         r += 1
-        self.logbox = tk.Text(f, height=3, bg="#141210", fg="#d9cfc0", relief="flat", font=("Consolas", 9), wrap="word")
+        self.logbox = tk.Text(f, height=2, bg="#141210", fg="#d9cfc0", relief="flat", font=("Consolas", 9), wrap="word")
         self.logbox.grid(row=r, column=0, columnspan=3, sticky="nsew", pady=(2, 0))
         self.logbox.tag_configure("r", justify="right")
 
@@ -188,8 +203,21 @@ class CineTab:
         ttk.Button(f, text="اختار…", command=browse).grid(row=r, column=2, sticky="ew", pady=2)
         return r + 1
 
+    def green_value(self):
+        return round(min(max(float(self.green.get()), 0.80), 1.00), 2)
+
+    def set_green(self, g):
+        self.green.set(g)
+        self.green_lbl.configure(text="%.2f" % g)
+
+    def load_green(self):
+        g = self.settings.get("greens", {}).get(self.v["footage"].get().strip(), GREEN_DEFAULT)
+        self.set_green(float(g))
+
     def set_path(self, key, p):
         self.v[key].set(p)
+        if key == "footage":
+            self.load_green()
         if key == "footage" and cinematic:
             if not self.v["out"].get():
                 self.v["out"].set(cinematic.default_out_dir(p))
@@ -248,10 +276,13 @@ class CineTab:
         self.n_reels.set(int(self.settings.get("n", 4)))
         self.ig.set(bool(self.settings.get("ig", False)))
         self.glare.set(bool(self.settings.get("glare", False)))
+        self.load_green()
 
     def remember(self):
         self.settings.update({k: v.get() for k, v in self.v.items()})
         self.settings.update(n=self.n_reels.get(), ig=self.ig.get(), glare=self.glare.get())
+        if self.v["footage"].get().strip():
+            self.settings.setdefault("greens", {})[self.v["footage"].get().strip()] = self.green_value()
         if self.project is not None and self.project.offset is not None:
             self.settings.setdefault("offsets", {})[self.v["footage"].get()] = [self.project.offset, self.project.rate]
         self.save_settings()
@@ -314,6 +345,7 @@ class CineTab:
             off, rate = None, 1.0
         p = cinematic.Project(g["footage"], g["master"], g["lyrics"], g["stem"], g["srt"], g["song"], g["out"],
                               n_reels=max(1, int(self.n_reels.get() or 4)), ig=self.ig.get(), deglare=self.glare.get(),
+                              green=self.green_value(),
                               progress=lambda f, msg="": self.q.put(("p", f, msg)),
                               log=lambda msg: self.q.put(("l", msg)), cancel=self.cancel, offset=off)
         p.rate = rate
@@ -446,6 +478,7 @@ class CineTab:
         self.apply_row()
         self.sync_from_entry()
         self.project.ig, self.project.deglare = self.ig.get(), self.glare.get()
+        self.project.green = self.green_value()
         self.project.out_dir = self.v["out"].get().strip() or self.project.out_dir
         self.project.cancel = self.cancel
         self.remember()
@@ -517,6 +550,8 @@ class CineTab:
             for k in ("footage", "master", "stem", "lyrics", "srt", "song", "out"):
                 if at.get(k):
                     self.set_path(k, at[k])
+            if at.get("green"):
+                self.set_green(float(at["green"]))
             self.shot("cine-1-inputs.png")
             self.analyze()
         elif step == "render":

@@ -19,6 +19,7 @@ import cine_align
 import cine_audio
 import cine_edit
 import cine_face
+import cine_look
 import cine_render
 import engine
 
@@ -66,12 +67,14 @@ def default_out_dir(footage):
 class Project:
     def __init__(self, footage, master, lyrics, stem="", srt="", song="", out_dir="",
                  n_reels=4, ig=False, deglare=False, whisper="small", progress=None, log=None,
+                 green=cine_look.GREEN_DEFAULT,
                  cancel=None, asr=None, offset=None):
         self.footage, self.master, self.lyrics = footage, master, lyrics
         self.stem, self.srt = stem or "", srt or ""
         self.song = (song or "").strip() or default_song_name(footage)
         self.out_dir = out_dir or default_out_dir(footage)
         self.n_reels, self.ig, self.deglare, self.whisper = n_reels, ig, deglare, whisper
+        self.green = green             # green gain of the v5 grade for this footage
         self.progress = progress or (lambda f, m="": None)
         self.log = log or (lambda m: print(m, flush=True))
         self.cancel = cancel or threading.Event()
@@ -317,7 +320,7 @@ class Project:
                                     hook_text=(s.get("hook") or None), log=self.log,
                                     progress=lambda f, m="", a=a, b=b, label=label: self.progress(
                                         a + (b - a) * f, "%s — %d%%" % (label, f * 100)),
-                                    cancel=self.cancel, seed=n + 1, rate=self.rate)
+                                    cancel=self.cancel, seed=n + 1, rate=self.rate, green=self.green)
             base = "%s - %s - %s%s" % (engine.safe_name(self.song), s["name"], cine_edit.STYLE_NAMES[s["style"]].split(" (")[0].replace("—", "-"),
                                        " - IG-FB" if ig else "")
             base = engine.safe_name(base) if len(base) > 60 else re.sub(r'[\\/:*?"<>|]+', " ", base).strip()
@@ -365,6 +368,8 @@ def main(argv=None):
     ap.add_argument("--offset", type=float, default=None)
     ap.add_argument("--ig", action="store_true")
     ap.add_argument("--deglare", action="store_true")
+    ap.add_argument("--green", type=float, default=cine_look.GREEN_DEFAULT,
+                    help="green gain of the grade, 0.80-1.00 (v5 preset: 0.86)")
     ap.add_argument("--preview", action="store_true")
     ap.add_argument("--only", type=int, default=0, help="render only reel N (1-based)")
     a = ap.parse_args(argv)
@@ -375,7 +380,7 @@ def main(argv=None):
             last[0] = f
             print("[%3d%%] %s" % (f * 100, m), flush=True)
     p = Project(a.footage, a.master, a.lyrics, a.stem, a.srt, a.song, a.out, a.reels, a.ig, a.deglare,
-                progress=prog, offset=a.offset)
+                progress=prog, offset=a.offset, green=a.green)
     secs = p.analyze()
     for i, s in enumerate(secs):
         if a.styles:

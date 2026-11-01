@@ -30,12 +30,14 @@ STYLE_NAMES = {
 WIDE = dict(z=1.0, eye=0.40)
 MED = dict(face=0.22, eye=0.40)
 CLOSE = dict(face=0.30, eye=0.42)
-ECU = dict(face=0.40, eye=0.45)
-IG_OPEN = dict(face=0.24, eye=0.56)    # IG/FB opening: room for the hook above the head
+ECU = dict(face=0.36, eye=0.45)        # chin ends ~0.63 H, above the lyric block (0.67–0.79 H)
+IG_OPEN = dict(face=0.24, eye=0.48)    # IG/FB opening: room for the hook above the head
 P_WIDE = dict(z=1.0, eye=0.45)         # panel framings (landscape strips)
 P_FACE = dict(face=0.75, eye=0.50)
 P_EYES = dict(face=1.45, eye=0.62)
-P_HANDS = dict(face=0.55, eye=-0.75)   # gestures / chest
+P_HANDS = dict(face=0.55, eye=-0.75)   # gestures / chest (the bottom panel, under the lyrics)
+P_HANDS_R = dict(face=0.55, eye=-0.75, dx=0.14)
+P_HANDS_L = dict(face=0.55, eye=-0.75, dx=-0.14)
 P_SIDE = dict(face=0.6, eye=0.48, dx=0.18)
 
 
@@ -190,8 +192,9 @@ def build_b(c):
     cuts = c.cut_times()
     kl = c.lines[c.key_line()] if c.lines else None
     shots, effects = [], []
-    sets = [[P_WIDE, P_EYES, P_HANDS], [P_EYES, P_WIDE, P_FACE], [P_FACE, P_HANDS, P_WIDE],
-            [P_SIDE, P_FACE, P_EYES]]
+    # the bottom panel sits under the lyric line: always chest / hands, never a face
+    sets = [[P_WIDE, P_EYES, P_HANDS], [P_EYES, P_FACE, P_HANDS_R], [P_FACE, P_WIDE, P_HANDS_L],
+            [P_SIDE, P_EYES, P_HANDS]]
     k = 0
     for i, (a, b) in enumerate(zip(cuts, cuts[1:])):
         if i == 0:
@@ -208,10 +211,18 @@ def build_b(c):
         # beat cuts inside the panel shot: one panel changes framing every 2 beats
         swaps = []
         bt = [x[0] for x in c.beats if a + 0.2 < x[0] < b - 0.2]
-        pool = [P_WIDE, P_FACE, P_EYES, P_HANDS, P_SIDE]
+        pool = [P_WIDE, P_FACE, P_EYES, P_SIDE]
+        hands = [P_HANDS, P_HANDS_R, P_HANDS_L]
         cur = list(base)
         for j, t in enumerate(bt[1::2]):
             panel = j % 3
+            if panel == 2:
+                choice = hands[(k + j) % len(hands)]
+                if choice == cur[2]:
+                    choice = hands[(k + j + 1) % len(hands)]
+                cur[2] = choice
+                swaps.append((t, 2, choice))
+                continue
             n = (k + j * 2 + panel) % len(pool)
             for step in range(len(pool)):  # never the same framing in two panels
                 choice = pool[(n + step) % len(pool)]

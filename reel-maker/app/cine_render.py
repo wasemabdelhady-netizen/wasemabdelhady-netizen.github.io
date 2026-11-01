@@ -20,6 +20,7 @@ import cine_text
 import engine
 
 FPS = 30
+LYRIC_Y = 1400          # centre of the lyric block: below the chin even in the tightest framing
 MAX_ZOOM = 2.8          # vertical 4K -> 1920 px: still ≥ 0.5 source px per output px
 
 
@@ -90,14 +91,14 @@ def fit(sw, sh, short):
     return int(round(sw * k)) // 2 * 2, int(round(sh * k)) // 2 * 2
 
 
-def decode_filter(sw, sh, trc, max_h):
+def decode_filter(sw, sh, trc, max_h, green=cine_look.GREEN_DEFAULT):
     vf = ["fps=%d" % FPS]
     if trc:  # HLG / PQ footage -> SDR Rec.709 before the grade
         vf.append("zscale=t=linear:npl=203,format=gbrpf32le,zscale=p=bt709,"
                   "tonemap=mobius:desat=0,zscale=t=bt709:m=bt709:r=tv")
     if min(sw, sh) > max_h:
         vf.append("scale=%d:%d:flags=lanczos" % fit(sw, sh, max_h))
-    vf.append("lut3d=file=%s:interp=tetrahedral" % os.path.basename(cine_look.cube_path()))
+    vf.append("lut3d=file=%s:interp=tetrahedral" % os.path.basename(cine_look.cube_path(green)))
     vf.append("format=rgb24")
     return ",".join(vf)
 
@@ -105,17 +106,17 @@ def decode_filter(sw, sh, trc, max_h):
 class Reader:
     """Background ffmpeg decoder -> frames (graded RGB, source resolution)."""
 
-    def __init__(self, path, start, dur, max_h, hw=True):
+    def __init__(self, path, start, dur, max_h, hw=True, green=cine_look.GREEN_DEFAULT):
         sw, sh, trc = video_meta(path)
         self.w, self.h = fit(sw, sh, max_h)
         args = [engine.ffmpeg_bin(), "-hide_banner", "-nostdin", "-loglevel", "error"]
         if hw:
             args += ["-hwaccel", "auto"]
         args += ["-ss", "%.3f" % max(0.0, start), "-t", "%.3f" % (dur + 0.5), "-i", path, "-an",
-                 "-vf", decode_filter(*video_meta(path)[:2], trc=trc, max_h=max_h),
+                 "-vf", decode_filter(*video_meta(path)[:2], trc=trc, max_h=max_h, green=green),
                  "-f", "rawvideo", "-"]
         self.p = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                                  cwd=os.path.dirname(cine_look.cube_path()), creationflags=engine.NO_WINDOW)
+                                  cwd=os.path.dirname(cine_look.cube_path(green)), creationflags=engine.NO_WINDOW)
         self.q = queue.Queue(maxsize=6)
         self.err = b""
         self.n = 0
@@ -151,16 +152,16 @@ class Reader:
             pass
 
 
-def grab(path, t, max_h=1080):
+def grab(path, t, max_h=1080, green=cine_look.GREEN_DEFAULT):
     """One graded frame at footage time t (thumbnails / colour check)."""
     sw, sh, trc = video_meta(path)
     sw, sh = fit(sw, sh, max_h)
     r = subprocess.run([engine.ffmpeg_bin(), "-hide_banner", "-nostdin", "-loglevel", "error",
                         "-ss", "%.3f" % max(0.0, t), "-i", path, "-frames:v", "1", "-an",
-                        "-vf", decode_filter(*video_meta(path)[:2], trc=trc, max_h=max_h),
+                        "-vf", decode_filter(*video_meta(path)[:2], trc=trc, max_h=max_h, green=green),
                         "-f", "rawvideo", "-"],
                        stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                       cwd=os.path.dirname(cine_look.cube_path()), creationflags=engine.NO_WINDOW)
+                       cwd=os.path.dirname(cine_look.cube_path(green)), creationflags=engine.NO_WINDOW)
     if len(r.stdout) < sw * sh * 3:
         return None
     return np.frombuffer(r.stdout[:sw * sh * 3], np.uint8).reshape(sh, sw, 3).copy()
@@ -213,8 +214,9 @@ class Reel:
 
     def __init__(self, footage, master, offset, start, end, lines, beats, face, style,
                  song="", ig=False, deglare=False, hook_text=None, hook_key=-1,
-                 log=None, progress=None, cancel=None, seed=1, rate=1.0):
+                 log=None, progress=None, cancel=None, seed=1, rate=1.0, green=cine_look.GREEN_DEFAULT):
         self.footage, self.master, self.offset, self.rate = footage, master, offset, rate
+        self.green = green
         self.start, self.end = start, end
         self.dur = end - start
         self.lines, self.beats, self.face = lines, beats, face
@@ -263,7 +265,7 @@ class Reel:
         if not preview:
             samples = []
             for q in (0.2, 0.5, 0.8):
-                g = grab(self.footage, self.vtime(self.start + self.dur * q), 540)
+                g = grab(self.footage, self.vtime(self.start + self.dur * q), 540, self.green)
                 if g is not None:
                     samples.append(g)
             gains = cine_look.neutral_fix(samples, self.log)
@@ -273,7 +275,7 @@ class Reel:
         bars = plan["opts"].get("bars")
         bar_h = int(300 * k) if bars else 0
         band = (bar_h, H - bar_h)
-        text_cy = int(1330 * k) if not bars else int(1395 * k)
+        text_cy = int(LYRIC_Y * k)  # mid-chest in every framing (below the chin, see cine_edit)
         sched = cine_text.Schedule([(l["text"], l["words"], l["key"]) for l in rl], k=k, cy=text_cy, W=W)
         hook = None
         if self.ig:
@@ -286,9 +288,9 @@ class Reel:
             if e["type"] == "stamp":
                 stamps[id(e)] = cine_text.Stamp(e["word"], k=k * 1.15, cx=W // 2, cy=text_cy, angle=-6.0)
         sig, sig_x, sig_dy = cine_text.signature(self.song, k, W)
-        sig_y = int(1585 * k) + sig_dy if not bars else int(1700 * k) + sig_dy
+        sig_y = int(1610 * k) + sig_dy if not bars else int(1700 * k) + sig_dy
 
-        reader = Reader(self.footage, vstart, dur / self.rate, max_h)
+        reader = Reader(self.footage, vstart, dur / self.rate, max_h, green=self.green)
         sw, sh = reader.w, reader.h
         cmd = [engine.ffmpeg_bin(), "-hide_banner", "-nostdin", "-y", "-loglevel", "error",
                "-f", "rawvideo", "-pix_fmt", "rgb24", "-s", "%dx%d" % (W, H), "-framerate", str(FPS), "-i", "pipe:0",
@@ -334,7 +336,7 @@ class Reel:
                 frame_src = src
                 if self.deglare:
                     frame_src = src.copy()
-                    cine_look.deglare(frame_src, cine_look.eye_boxes(face[3], face[2], sw, sh), graded=True)
+                    cine_look.deglare(frame_src, cine_look.eye_boxes(face[3], face[2], sw, sh), graded=True, green=self.green)
                 half = None
                 if cine_edit.shot_at(plan, t)["kind"] in ("panels", "split", "double") and sw > 1.6 * W:
                     half = cv2.resize(frame_src, (sw // 2, sh // 2), interpolation=cv2.INTER_AREA)

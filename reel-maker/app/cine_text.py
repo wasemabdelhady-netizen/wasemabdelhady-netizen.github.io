@@ -18,7 +18,11 @@ BODY_FONT = "Cairo.ttf"
 KEY_FONT = "ArefRuqaa-Bold.ttf"
 XFADE = 0.12          # dim -> lit crossfade per word
 LINE_IN, LINE_OUT = 0.22, 0.28
-DIM = 0.36            # alpha of a word before it is sung
+DIM_FILL = (150, 146, 140)       # a word before it is sung: grey inside the dark outline
+DIM_GOLD = (150, 112, 52)
+STROKE = (12, 9, 7)
+GOLD_GLOW = (255, 172, 48)
+LYRIC_SIZE = 101                 # px at 1080 wide (was 78: +30 % for sound-off reading)
 
 
 def premul(img):
@@ -41,6 +45,44 @@ def fade_alpha(g, a):
     img = g.img.copy()
     img.putalpha(img.getchannel("A").point([int(v * a) for v in range(256)]))
     return engine.Glyphs(img, g.ox, g.oy, g.adv)
+
+
+def stroked_word(word, font, fill, glow=None, k=1.0):
+    """One word with a dark outline + soft drop shadow (readable on any background),
+    optionally a glow (colour, strength). Same geometry contract as engine.render_word."""
+    size = font.size
+    asc, desc = font.getmetrics()
+    kw = engine._text_kw(word)
+    adv = font.getlength(word, **kw)
+    sw = max(2, int(round(size * 0.075)))
+    pad = int(size * 0.7)
+    w, h = int(adv + 2 * pad), int(asc + desc + 2 * pad)
+    base = pad + asc
+    outline = Image.new("L", (w, h), 0)
+    ImageDraw.Draw(outline).text((pad, base), word, font=font, fill=255, anchor="ls",
+                                 stroke_width=sw, stroke_fill=255, **kw)
+    body = Image.new("L", (w, h), 0)
+    ImageDraw.Draw(body).text((pad, base), word, font=font, fill=255, anchor="ls", **kw)
+    out = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    if glow:
+        col, strength = glow
+        for radius, s in ((size * 0.16, strength), (size * 0.42, strength * 0.55)):
+            ga = body.filter(ImageFilter.GaussianBlur(max(1.0, radius))).point(lambda v, s=s: int(min(255, v * s)))
+            layer = Image.new("RGBA", (w, h), col + (0,))
+            layer.putalpha(ga)
+            out = Image.alpha_composite(out, layer)
+    sh = outline.filter(ImageFilter.GaussianBlur(max(2, size // 10))).point(lambda v: int(v * 0.7))
+    shadow = Image.new("RGBA", (w, h), STROKE + (0,))
+    shadow.putalpha(sh)
+    off = max(2, size // 24)
+    out.alpha_composite(shadow, (0, off))
+    ring = Image.new("RGBA", (w, h), STROKE + (0,))
+    ring.putalpha(outline.point(lambda v: int(v * 0.92)))
+    out = Image.alpha_composite(out, ring)
+    face = Image.new("RGBA", (w, h), tuple(fill) + (0,))
+    face.putalpha(body)
+    out = Image.alpha_composite(out, face)
+    return engine.Glyphs(out, pad, base, adv)
 
 
 class Layer:
@@ -70,7 +112,7 @@ def blend(frame, arr, x, y, alpha=1.0):
 class KaraokeLine:
     """One lyric line: words dim until sung, lit exactly on their start time."""
 
-    def __init__(self, text, times, key, k=1.0, cy=1330, maxw=930, size=78, W=1080):
+    def __init__(self, text, times, key, k=1.0, cy=1400, maxw=960, size=LYRIC_SIZE, W=1080):
         self.text, self.times = text, times
         words = text.split()
         self.words = [w.replace("*", "") for w in words]
@@ -85,14 +127,12 @@ class KaraokeLine:
             space = body.getlength(" ") * 1.2
             lit, dim = [], []
             for i, w in enumerate(self.words):
-                if i == key:
-                    g = engine.render_word(w, keyf, GOLD, shadow=0.6)
-                    lit.append(with_glow(g, (255, 170, 80), max(3, int(10 * k)), 0.55))
-                    dim.append(fade_alpha(engine.render_word(w, keyf, GOLD, shadow=0.45), DIM + 0.06))
+                if i == key:   # gold Ruqaa word: strong two-layer gold glow when sung
+                    lit.append(stroked_word(w, keyf, GOLD, glow=(GOLD_GLOW, 1.6), k=k))
+                    dim.append(stroked_word(w, keyf, DIM_GOLD, k=k))
                 else:
-                    g = engine.render_word(w, body, WHITE, shadow=0.6)
-                    lit.append(with_glow(g, (255, 236, 214), max(2, int(7 * k)), 0.35))
-                    dim.append(fade_alpha(engine.render_word(w, body, WHITE, shadow=0.45), DIM))
+                    lit.append(stroked_word(w, body, WHITE, glow=((255, 238, 218), 0.35), k=k))
+                    dim.append(stroked_word(w, body, DIM_FILL, k=k))
             advs = [g.adv for g in lit]
             soft = {i for i, w in enumerate(self.words) if w and w[-1] in "…،,.؟?!:؛"}
             rows = engine.wrap_rows(advs, space, maxw, soft)
@@ -159,7 +199,7 @@ class KaraokeLine:
 class Schedule:
     """Which line is on screen when: in/out fades, never two lines at once."""
 
-    def __init__(self, lines, k=1.0, cy=1330, W=1080, maxw=930, size=78):
+    def __init__(self, lines, k=1.0, cy=1400, W=1080, maxw=960, size=LYRIC_SIZE):
         """lines: [(text, [(s, e) per word], key)] in reel time, sorted."""
         self.items = []
         n = len(lines)

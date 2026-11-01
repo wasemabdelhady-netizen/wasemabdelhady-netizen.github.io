@@ -14,7 +14,9 @@ import autoreel
 S_CURVE = 0.32
 SHADOW_TINT = np.array([0.06, -0.01, -0.01], np.float32)
 HIGHLIGHT_TINT = np.array([-0.01, -0.015, 0.005], np.float32)
-GAINS = np.array([0.97, 0.86, 1.06], np.float32)  # R, G, B
+GAINS = np.array([0.97, 0.86, 1.06], np.float32)  # R, G, B — the approved v5 preset
+GREEN_DEFAULT = float(GAINS[1])                    # «تقليل الأخضر» slider, 0.80–1.00 per footage
+GREEN_MIN, GREEN_MAX = 0.80, 1.00
 LUT_VERSION = "v5.1"
 
 
@@ -57,9 +59,15 @@ def hsv_to_rgb(h, s, v):
     return out
 
 
-def grade_float(c):
+def gains(green=GREEN_DEFAULT):
+    g = GAINS.copy()
+    g[1] = min(max(float(green), GREEN_MIN), GREEN_MAX)
+    return g
+
+
+def grade_float(c, green=GREEN_DEFAULT):
     """c: [N, 3] float32 RGB 0..1 -> graded. Order as approved: S-curve, hue work,
-    split tone, channel gains."""
+    split tone, channel gains (`green` = the green gain, 0.86 in the v5 preset)."""
     c = c + S_CURVE * (c * c * (3 - 2 * c) - c)
     h, s, v = rgb_to_hsv(c)
     wg = _bump(h, 115.0, 50.0) * _smoothstep(0.05, 0.25, s)   # greens (and green-yellows)
@@ -72,16 +80,18 @@ def grade_float(c):
     ws = 1.0 - _smoothstep(0.0, 0.55, L)
     wh = _smoothstep(0.45, 1.0, L)
     c = c + ws * SHADOW_TINT + wh * HIGHLIGHT_TINT
-    c = c * GAINS
+    c = c * gains(green)
     return np.clip(c, 0.0, 1.0)
 
 
 CUBE_N = 65
 
 
-def cube_path():
-    """The v5 grade as a 65³ .cube file (ffmpeg lut3d applies it while decoding)."""
-    name = "grade-%s.cube" % LUT_VERSION
+def cube_path(green=GREEN_DEFAULT):
+    """The v5 grade as a 65³ .cube file (ffmpeg lut3d applies it while decoding),
+    one file per green gain."""
+    green = min(max(float(green), GREEN_MIN), GREEN_MAX)
+    name = "grade-%s-g%03d.cube" % (LUT_VERSION, int(round(green * 100)))
     path = os.path.join(autoreel.CACHE_DIR, name)
     if os.path.isfile(path):
         return path
@@ -89,7 +99,7 @@ def cube_path():
     lv = np.arange(n, dtype=np.float32) / (n - 1)
     bb, gg, rr = np.meshgrid(lv, lv, lv, indexing="ij")  # .cube: red changes fastest
     c = np.stack([rr.ravel(), gg.ravel(), bb.ravel()], axis=1)
-    out = grade_float(c)
+    out = grade_float(c, green)
     os.makedirs(autoreel.CACHE_DIR, exist_ok=True)
     lines = ["TITLE \"Wasem v5\"", "LUT_3D_SIZE %d" % n]
     lines += ["%.5f %.5f %.5f" % tuple(v) for v in out]
@@ -99,13 +109,13 @@ def cube_path():
     return path
 
 
-def apply_cube(img):
+def apply_cube(img, green=GREEN_DEFAULT):
     """Python version of the cube (stills / tests): trilinear on the 65³ grid."""
     n = CUBE_N
     c = img.reshape(-1, 3).astype(np.float32) / 255.0
     lv = np.arange(n, dtype=np.float32) / (n - 1)
     rr, gg, bb = np.meshgrid(lv, lv, lv, indexing="ij")
-    grid = grade_float(np.stack([rr.ravel(), gg.ravel(), bb.ravel()], axis=1)).reshape(n, n, n, 3)
+    grid = grade_float(np.stack([rr.ravel(), gg.ravel(), bb.ravel()], axis=1), green).reshape(n, n, n, 3)
     x = c * (n - 1)
     i0 = np.clip(np.floor(x).astype(np.int32), 0, n - 2)
     f = x - i0
@@ -273,7 +283,7 @@ class Light:
 
 # --------------------------------------------------------------------------- glasses
 
-def deglare(img, boxes, graded=False):
+def deglare(img, boxes, graded=False, green=GREEN_DEFAULT):
     """Remove reflections on glasses inside eye `boxes` [(x0, y0, x1, y1)] (image px).
     Mask = (tophat > 18) & (gray > 120) & (b + 12 >= r); skin is never touched.
     graded=True: the frame already has the v5 gains, so r and b are measured back

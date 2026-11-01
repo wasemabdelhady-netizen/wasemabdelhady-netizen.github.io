@@ -34,49 +34,81 @@ def _xcorr(a, b):
 
 
 def sync_offset(master_path, footage_path, log=None):
-    """Find where the footage sits in the master from the camera's own audio.
-    Returns (offset, confidence 0..1). Coarse: onset envelopes (10 ms); fine:
-    raw waveform correlation around the coarse lag (sub-millisecond)."""
-    m = autoreel.decode(master_path, SYNC_SR)
-    v = autoreel.decode(footage_path, SYNC_SR)
-    if len(v) < SYNC_SR * 3:
+    """Where the footage sits in the master, from the camera's own audio.
+
+    Returns (offset, confidence 0..1, rate): master_t = offset + rate * footage_t.
+    The camera clock drifts against the master (Wasem's test clip: ~1.6 ms per second),
+    so the lag is measured on 15 s windows along the clip (spectral-flux onsets, 5 ms)
+    and a straight line is fitted through the windows that agree."""
+    sr, hop = 16000, 80
+    m = autoreel.decode(master_path, sr)
+    v = autoreel.decode(footage_path, sr)
+    if len(v) < sr * 3:
         raise RuntimeError("الفيديو مفيهوش صوت كفاية للمزامنة")
-    hop = 0.01
-    em, ev = _env(m, SYNC_SR, hop), _env(v, SYNC_SR, hop)
-    lags, vals = _xcorr(ev, em)
+    fm = onset_strength(m, sr, hop, nfft=1024)
+    fv = onset_strength(v, sr, hop, nfft=1024)
+    fm0 = fm - fm.mean()
+    # global lag
+    seg = fv - fv.mean()
+    lags, vals = _xcorr(seg, fm0)
     k = int(np.argmax(vals))
-    coarse = lags[k] * hop
-    # confidence: peak against the rest of the correlation (excluding ±0.3 s)
-    mask = np.abs(lags - lags[k]) > int(0.3 / hop)
-    rest = vals[mask]
+    rest = vals[np.abs(lags - lags[k]) > 60]
     z = (vals[k] - rest.mean()) / (rest.std() + 1e-9) if len(rest) else 0.0
-    conf = float(np.clip((z - 4.0) / 8.0, 0.0, 1.0))
-    # fine: waveforms, ±40 ms around the coarse lag, on the loudest 20 s of the footage
-    win = int(20 * SYNC_SR)
-    if len(v) > win:
-        e = np.convolve(v * v, np.ones(SYNC_SR), "valid")[::SYNC_SR]
-        s0 = int(np.argmax(np.convolve(e, np.ones(20), "valid"))) * SYNC_SR
-        s0 = min(s0, len(v) - win)
+    g = lags[k]
+    fps = sr / float(hop)
+    # windows: lag search within ±1 s of the global lag
+    win, step, reach = int(15 * fps), int(7.5 * fps), int(1.0 * fps)
+    pts = []
+    for s0 in range(0, max(1, len(fv) - win // 2), step):
+        w = fv[s0:s0 + win]
+        if len(w) < win // 2 or w.std() < 1e-6:
+            continue
+        lo = s0 + g - reach
+        hi = s0 + g + reach + len(w)
+        if lo < 0 or hi > len(fm):
+            continue
+        ref = fm[lo:hi]
+        l2, c2 = _xcorr(w - w.mean(), ref - ref.mean())
+        ok = (l2 >= 0) & (l2 <= 2 * reach)
+        if not ok.any():
+            continue
+        cc = np.where(ok, c2, -np.inf)
+        j = int(np.argmax(cc))
+        d = 0.0
+        if 0 < j < len(c2) - 1 and np.isfinite(cc[j - 1]) and np.isfinite(cc[j + 1]):
+            a_, b_, c_ = c2[j - 1], c2[j], c2[j + 1]
+            d = float(np.clip((a_ - c_) / (2 * (a_ - 2 * b_ + c_) + 1e-12), -0.5, 0.5))
+        lag = (lo + l2[j] + d - s0) / fps
+        okv = c2[ok]
+        q = (c2[j] - okv.mean()) / (okv.std() + 1e-9)
+        pts.append(((s0 + len(w) / 2.0) / fps, lag, q))
+    offset, rate = g / fps, 1.0
+    good = [p for p in pts if p[2] > 4.0]
+    if len(good) >= 3:
+        t = np.array([p[0] for p in good])
+        y = np.array([p[1] for p in good])
+        for _ in range(3):  # robust line: drop windows far from the fit
+            A = np.vstack([t, np.ones_like(t)]).T
+            slope, icpt = np.linalg.lstsq(A, y, rcond=None)[0]
+            res = np.abs(y - (slope * t + icpt))
+            keep = res < max(0.02, 3 * np.median(res))
+            if keep.all() or keep.sum() < 3:
+                break
+            t, y = t[keep], y[keep]
+        if abs(slope) < 0.01:  # > 1 % would be a different tempo, not drift
+            offset, rate = float(icpt), 1.0 + float(slope)
+        else:
+            offset = float(np.median(y))
+        agree = len(t) / float(max(1, len(pts)))
     else:
-        s0, win = 0, len(v)
-    seg = v[s0:s0 + win]
-    pad = int(0.04 * SYNC_SR)
-    m0 = int(round((s0 / SYNC_SR + coarse) * SYNC_SR)) - pad
-    fine = coarse
-    if m0 >= 0 and m0 + win + 2 * pad <= len(m):
-        ref = m[m0:m0 + win + 2 * pad]
-        seg_n = (seg - seg.mean()) / (seg.std() + 1e-9)
-        ref_n = (ref - ref.mean()) / (ref.std() + 1e-9)
-        l2, v2 = _xcorr(seg_n, ref_n)
-        ok = (l2 >= 0) & (l2 <= 2 * pad)
-        if ok.any():
-            j = int(np.argmax(np.where(ok, v2, -np.inf)))
-            fine = (m0 + l2[j]) / float(SYNC_SR) - s0 / float(SYNC_SR)
-            if abs(fine - coarse) > 0.05:
-                fine = coarse
+        agree = 0.3
+    conf = float(np.clip((z - 4.0) / 6.0, 0.0, 1.0) * 0.5 + agree * 0.5)
     if log:
-        log("المزامنة: الفيديو بيبدأ عند %.3f ث من الماستر (ثقة %d%%)" % (fine, conf * 100))
-    return float(fine), conf
+        drift = (rate - 1.0) * 1000
+        log("المزامنة: الفيديو بيبدأ عند %.3f ث من الماستر%s (ثقة %d%%)" % (
+            offset, "، وساعة الكاميرا مختلفة %+.1f ms كل ثانية — اتظبطت" % drift if abs(drift) > 0.2 else "",
+            conf * 100))
+    return float(offset), conf, float(rate)
 
 
 # ----------------------------------------------------------------------------- beats

@@ -199,7 +199,7 @@ class Hook:
             key = engine.pick_gold(words) if len(words) > 1 else -1
         clean = " ".join(("*%s*" % w.replace("*", "")) if i == key else w.replace("*", "")
                          for i, w in enumerate(words))
-        blk = engine.TextBlock(clean, BODY_FONT, int(112 * k), cy, weight=900, gold=key >= 0,
+        blk = engine.TextBlock(clean, BODY_FONT, int(104 * k), cy, weight=900, gold=key >= 0,
                                maxw=int(960 * k), max_rows=2, line_gap=1.0, shadow=0.85)
         canvas = Image.new("RGBA", (W, int(cy * 2 + 200 * k)), (0, 0, 0, 0))
         blk.draw(canvas, [1] * len(blk.items), [0] * len(blk.items))

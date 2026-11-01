@@ -241,6 +241,7 @@ class Light:
             y0 = rng.uniform(0.15, 0.85)
             sx, sy = rng.uniform(0.25, 0.4), rng.uniform(0.35, 0.6)
             g = np.exp(-(((self.xx - x0) / sx) ** 2 + ((self.yy - y0) / sy) ** 2))
+            g = g * (0.35 + 0.65 * _smoothstep(0.12, 0.42, np.sqrt(((self.xx - 0.5) * 1.3) ** 2 + ((self.yy - 0.42) * 0.9) ** 2)))
             out += g[..., None] * col * (0.55 if k else 0.8)
         return out * env
 
@@ -253,6 +254,9 @@ class Light:
         thr = 1.0 - 0.5 * env              # at the peak about a third of the frame burns
         m = np.clip((n - thr) / 0.22 + (self.xx - 0.5) * 0.25, 0, 1)
         m = m ** 1.6
+        # burns come in from the edges; the face area (centre, upper half) stays clear
+        d = np.sqrt(((self.xx - 0.5) * 1.3) ** 2 + ((self.yy - 0.42) * 0.9) ** 2)
+        m = m * _smoothstep(0.18, 0.5, d)
         orange = np.array([255, 105, 38], np.float32)
         core = np.array([255, 225, 195], np.float32) if white else np.array([255, 140, 80], np.float32)
         hot = np.clip((m - 0.65) / 0.35, 0, 1)[..., None]

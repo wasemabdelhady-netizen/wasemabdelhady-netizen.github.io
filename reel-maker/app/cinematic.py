@@ -10,11 +10,9 @@ Command line (tests / batch):
 """
 import os
 import re
-import tempfile
 import threading
 import time
 
-import numpy as np
 
 import autoreel
 import cine_align
@@ -79,6 +77,7 @@ class Project:
         self.cancel = cancel or threading.Event()
         self.asr = asr                 # tests: callable(texts) -> autoreel.Line list
         self.offset = offset           # set by the user to skip / override the auto sync
+        self.rate = 1.0                # master seconds per footage second (camera clock drift)
         self.conf = None
         self.lines, self.sections = [], []
 
@@ -114,7 +113,7 @@ class Project:
         if self.offset is None:
             if not has_fa:
                 raise RuntimeError("الفيديو مفيهوش صوت — اكتب الفرق بإيدك (ثانية الماستر اللي الفيديو بيبدأ عندها)")
-            self.offset, self.conf = cine_audio.sync_offset(self.master, self.footage, self.log)
+            self.offset, self.conf, self.rate = cine_audio.sync_offset(self.master, self.footage, self.log)
         self.progress(0.05, "بحدد توقيت الكلمات…")
         self.load_or_make_words(redo_words, self.stage(0.05, 0.75))
         self.progress(0.76, "بحسب الإيقاع…")
@@ -215,7 +214,7 @@ class Project:
     # -- reels ------------------------------------------------------------------------
     def usable(self):
         """Master-time range the footage covers."""
-        return max(0.0, self.offset + 0.1), min(self.master_dur, self.offset + self.footage_dur - 0.2)
+        return max(0.0, self.offset + 0.1), min(self.master_dur, self.offset + self.rate * self.footage_dur - 0.2)
 
     def strengths(self):
         vocal = autoreel.decode(self.stem or self.master, 8000)
@@ -318,7 +317,7 @@ class Project:
                                     hook_text=(s.get("hook") or None), log=self.log,
                                     progress=lambda f, m="", a=a, b=b, label=label: self.progress(
                                         a + (b - a) * f, "%s — %d%%" % (label, f * 100)),
-                                    cancel=self.cancel, seed=n + 1)
+                                    cancel=self.cancel, seed=n + 1, rate=self.rate)
             base = "%s - %s - %s%s" % (engine.safe_name(self.song), s["name"], cine_edit.STYLE_NAMES[s["style"]].split(" (")[0].replace("—", "-"),
                                        " - IG-FB" if ig else "")
             base = engine.safe_name(base) if len(base) > 60 else re.sub(r'[\\/:*?"<>|]+', " ", base).strip()

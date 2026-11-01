@@ -253,7 +253,7 @@ class CineTab:
         self.settings.update({k: v.get() for k, v in self.v.items()})
         self.settings.update(n=self.n_reels.get(), ig=self.ig.get(), glare=self.glare.get())
         if self.project is not None and self.project.offset is not None:
-            self.settings.setdefault("offsets", {})[self.v["footage"].get()] = self.project.offset
+            self.settings.setdefault("offsets", {})[self.v["footage"].get()] = [self.project.offset, self.project.rate]
         self.save_settings()
 
     # -- jobs -----------------------------------------------------------------------
@@ -304,15 +304,19 @@ class CineTab:
     def make_project(self, keep=True):
         g = {k: v.get().strip() for k, v in self.v.items()}
         offs = self.settings.get("offsets", {})
-        off = None
+        off, rate = None, 1.0
         if keep and self.project is not None and self.project.footage == g["footage"]:
-            off = self.project.offset
+            off, rate = self.project.offset, self.project.rate
         elif g["footage"] in offs:
-            off = float(offs[g["footage"]])
+            o = offs[g["footage"]]
+            off, rate = (float(o[0]), float(o[1])) if isinstance(o, list) else (float(o), 1.0)
+        if not self.off_var.get().strip():  # empty box = sync again automatically
+            off, rate = None, 1.0
         p = cinematic.Project(g["footage"], g["master"], g["lyrics"], g["stem"], g["srt"], g["song"], g["out"],
                               n_reels=max(1, int(self.n_reels.get() or 4)), ig=self.ig.get(), deglare=self.glare.get(),
                               progress=lambda f, msg="": self.q.put(("p", f, msg)),
                               log=lambda msg: self.q.put(("l", msg)), cancel=self.cancel, offset=off)
+        p.rate = rate
         return p
 
     def analyze(self, redo=False):
@@ -323,8 +327,8 @@ class CineTab:
         except Exception as ex:
             messagebox.showerror("Reel Maker", str(ex))
             return
-        if redo:
-            p.offset = self.project.offset if self.project else p.offset
+        if redo and self.project:
+            p.offset, p.rate = self.project.offset, self.project.rate
         self.project = p
         self.remember()
         self.logbox.delete("1.0", "end")

@@ -27,6 +27,7 @@ MODEL_FILES = ("align-ar.onnx", "align-ar.vocab.json")
 CHUNK_MAX = 28.0                  # seconds of audio per alignment pass
 PAD = 1.2                         # audio around a chunk (ASR times are rough)
 MIN_SCORE = -6.0                  # mean log-prob per token below this = word failed
+GARBAGE_PEN = 0.3                 # garbage frame cost below the best token (tuned on Wasem's stem)
 
 
 # ----------------------------------------------------------------------------- download
@@ -147,20 +148,26 @@ class Aligner:
                 ids.append(self.vocab["ي"])
         return ids
 
-    def force_align(self, em, words):
-        """CTC Viterbi over the blank-interleaved token sequence of `words`.
-        Returns [(start_frame, end_frame, mean_logp) or None] per word."""
-        seq, owner = [], []
+    def force_align(self, em, words, pen=GARBAGE_PEN):
+        """CTC Viterbi over the blank-interleaved token sequence of `words`, with a
+        "garbage" label before and after it: singing in the window that isn't these
+        words (the previous / next line) lands there instead of being forced onto the
+        first or last word. Returns [(start_frame, end_frame, mean_logp) or None] per word."""
+        V = em.shape[1]
+        em = np.concatenate([em, (em.max(axis=1) - pen)[:, None]], axis=1)
+        seq, owner = [V], [-1]
         for wi, w in enumerate(words):
             ids = self.tokens(w)
-            if self.delim is not None and seq:
+            if self.delim is not None and len(seq) > 1:
                 seq.append(self.delim)
                 owner.append(-1)
             for t in ids:
                 seq.append(t)
                 owner.append(wi)
+        seq.append(V)
+        owner.append(-1)
         T, L = em.shape[0], len(seq)
-        if L == 0 or T < L:
+        if L <= 2 or T < L:
             return [None] * len(words)
         S = 2 * L + 1
         lab = np.full(S, self.blank, dtype=np.int64)

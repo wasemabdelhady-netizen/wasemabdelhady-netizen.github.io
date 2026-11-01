@@ -20,6 +20,7 @@ import cine_text
 import engine
 
 FPS = 30
+MAX_ZOOM = 2.8          # vertical 4K -> 1920 px: still ≥ 0.5 source px per output px
 
 
 # ----------------------------------------------------------------------------- files
@@ -80,13 +81,22 @@ def video_meta(path):
     return w, h, trc
 
 
+def fit(sw, sh, short):
+    """Size with the short side capped at `short` (even numbers)."""
+    m = min(sw, sh)
+    if m <= short:
+        return sw, sh
+    k = short / float(m)
+    return int(round(sw * k)) // 2 * 2, int(round(sh * k)) // 2 * 2
+
+
 def decode_filter(sw, sh, trc, max_h):
     vf = ["fps=%d" % FPS]
     if trc:  # HLG / PQ footage -> SDR Rec.709 before the grade
         vf.append("zscale=t=linear:npl=203,format=gbrpf32le,zscale=p=bt709,"
                   "tonemap=mobius:desat=0,zscale=t=bt709:m=bt709:r=tv")
-    if sh > max_h:
-        vf.append("scale=-2:%d:flags=lanczos" % max_h)
+    if min(sw, sh) > max_h:
+        vf.append("scale=%d:%d:flags=lanczos" % fit(sw, sh, max_h))
     vf.append("lut3d=file=%s:interp=tetrahedral" % os.path.basename(cine_look.cube_path()))
     vf.append("format=rgb24")
     return ",".join(vf)
@@ -97,9 +107,7 @@ class Reader:
 
     def __init__(self, path, start, dur, max_h, hw=True):
         sw, sh, trc = video_meta(path)
-        if sh > max_h:
-            sw, sh = int(round(sw * max_h / float(sh))) // 2 * 2, max_h
-        self.w, self.h = sw, sh
+        self.w, self.h = fit(sw, sh, max_h)
         args = [engine.ffmpeg_bin(), "-hide_banner", "-nostdin", "-loglevel", "error"]
         if hw:
             args += ["-hwaccel", "auto"]
@@ -146,8 +154,7 @@ class Reader:
 def grab(path, t, max_h=1080):
     """One graded frame at footage time t (thumbnails / colour check)."""
     sw, sh, trc = video_meta(path)
-    if sh > max_h:
-        sw, sh = int(round(sw * max_h / float(sh))) // 2 * 2, max_h
+    sw, sh = fit(sw, sh, max_h)
     r = subprocess.run([engine.ffmpeg_bin(), "-hide_banner", "-nostdin", "-loglevel", "error",
                         "-ss", "%.3f" % max(0.0, t), "-i", path, "-frames:v", "1", "-an",
                         "-vf", decode_filter(*video_meta(path)[:2], trc=trc, max_h=max_h),
@@ -174,9 +181,13 @@ def rect_for(face, sw, sh, aspect, f, zmul=1.0):
     else:
         rw = float(sw)
         rh = rw / aspect
-    z = max(1.0, f.get("z", 1.0) * zmul)
+    z = f.get("z", 1.0)
+    if "face" in f:  # zoom so the face fills `face` of the frame height
+        want_h = face[2] * sh / f["face"]
+        z = min(max(rh / want_h if want_h > 1 else 1.0, 1.0), MAX_ZOOM)
+    z = max(1.0, z * zmul)
     rw, rh = rw / z, rh / z
-    fx, fy, fs = face[0], face[1], face[2]
+    fx, fy = face[0], face[1]
     cx = fx * sw + f.get("dx", 0.0) * rw
     y0 = fy * sh - f.get("eye", 0.42) * rh + f.get("dy", 0.0) * rh
     x0 = min(max(cx - rw / 2.0, 0.0), sw - rw)
@@ -202,8 +213,8 @@ class Reel:
 
     def __init__(self, footage, master, offset, start, end, lines, beats, face, style,
                  song="", ig=False, deglare=False, hook_text=None, hook_key=-1,
-                 log=None, progress=None, cancel=None, seed=1):
-        self.footage, self.master, self.offset = footage, master, offset
+                 log=None, progress=None, cancel=None, seed=1, rate=1.0):
+        self.footage, self.master, self.offset, self.rate = footage, master, offset, rate
         self.start, self.end = start, end
         self.dur = end - start
         self.lines, self.beats, self.face = lines, beats, face
@@ -243,7 +254,7 @@ class Reel:
         t0 = preview_from if preview else 0.0
         dur = min(preview_len, self.dur - t0) if preview else self.dur
         total = max(1, int(round(dur * FPS)))
-        vstart = self.start + t0 - self.offset
+        vstart = self.vtime(self.start + t0)
         max_h = 1080 if preview else 2160
         self.log("  الخطة: %d لقطة — %s" % (len(plan["shots"]), "، ".join(sorted({e["type"] for e in plan["effects"]})) or "—"))
 
@@ -252,7 +263,7 @@ class Reel:
         if not preview:
             samples = []
             for q in (0.2, 0.5, 0.8):
-                g = grab(self.footage, self.start + self.dur * q - self.offset, 540)
+                g = grab(self.footage, self.vtime(self.start + self.dur * q), 540)
                 if g is not None:
                     samples.append(g)
             gains = cine_look.neutral_fix(samples, self.log)
@@ -273,11 +284,11 @@ class Reel:
         stamps = {}
         for e in plan["effects"]:
             if e["type"] == "stamp":
-                stamps[id(e)] = cine_text.Stamp(e["word"], k=k, cx=W // 2, cy=int(1120 * k), angle=-6.0)
+                stamps[id(e)] = cine_text.Stamp(e["word"], k=k * 1.15, cx=W // 2, cy=text_cy, angle=-6.0)
         sig, sig_x, sig_dy = cine_text.signature(self.song, k, W)
         sig_y = int(1585 * k) + sig_dy if not bars else int(1700 * k) + sig_dy
 
-        reader = Reader(self.footage, vstart, dur, max_h)
+        reader = Reader(self.footage, vstart, dur / self.rate, max_h)
         sw, sh = reader.w, reader.h
         cmd = [engine.ffmpeg_bin(), "-hide_banner", "-nostdin", "-y", "-loglevel", "error",
                "-f", "rawvideo", "-pix_fmt", "rgb24", "-s", "%dx%d" % (W, H), "-framerate", str(FPS), "-i", "pipe:0",
@@ -289,7 +300,7 @@ class Reel:
         if preview:
             cmd += ["-preset", "veryfast", "-crf", "24"]
         else:
-            cmd += ["-preset", "medium", "-crf", "16", "-maxrate", "30M", "-bufsize", "60M", "-g", "60"]
+            cmd += ["-preset", "medium", "-crf", "16", "-maxrate", "20M", "-bufsize", "40M", "-g", "60"]
         fo = max(0.0, dur - 0.8)
         cmd += ["-af", "afade=t=in:d=0.12,afade=t=out:st=%.3f:d=0.8,aresample=48000" % fo,
                 "-c:a", "aac", "-b:a", "320k", "-ar", "48000",
@@ -303,17 +314,22 @@ class Reel:
         thumb_t = self.thumb_time(rl, plan)
         thumb_frame = None
         src = None
+        pos = -1
         try:
             for i in range(total):
                 if self.cancel.is_set():
                     raise engine.Cancelled()
-                nxt = reader.get()
-                if nxt is not None:
+                t = t0 + i / float(FPS)            # reel time
+                vt = self.vtime(self.start + t)    # footage time (camera clock drift included)
+                need = int(round((vt - vstart) * FPS))
+                while pos < need or src is None:   # skip a frame now and then when the clocks drift
+                    nxt = reader.get()
+                    if nxt is None:
+                        if src is None:
+                            raise RuntimeError("ffmpeg مش قادر يقرا الفيديو:\n%s" % reader.err.decode("utf-8", "replace")[-700:])
+                        break
                     src = nxt
-                elif src is None:
-                    raise RuntimeError("ffmpeg مش قادر يقرا الفيديو:\n%s" % reader.err.decode("utf-8", "replace")[-700:])
-                t = t0 + i / float(FPS)          # reel time
-                vt = self.start + t - self.offset  # footage time
+                    pos += 1
                 face = self.face.at(vt)
                 frame_src = src
                 if self.deglare:
@@ -329,7 +345,13 @@ class Reel:
                 frame = self.after(plan, t, frame, face, W, H, band, k)
                 if thumb_frame is None and t >= thumb_t:
                     thumb_frame = frame.copy()
-                sched.draw(frame, t)
+                # the red stamp takes the lyric line's place while it is up (never both)
+                st_a = 0.0
+                for e in plan["effects"]:
+                    if e["type"] == "stamp" and e["t0"] - 0.15 <= t <= e["t1"] + 0.15:
+                        st_a = max(st_a, min(1.0, (t - e["t0"] + 0.15) / 0.15, (e["t1"] + 0.15 - t) / 0.15))
+                if st_a < 0.999:
+                    sched.draw(frame, t, 1.0 - st_a)
                 if hook is not None:
                     hook.draw(frame, t)
                 for e in plan["effects"]:
@@ -369,6 +391,10 @@ class Reel:
         self.log("  اترندر في %.0f ث (%.1f فريم/ث)" % (time.time() - t_start, total / max(0.1, time.time() - t_start)))
         return out_mp4
 
+    def vtime(self, m):
+        """Master time -> footage time."""
+        return (m - self.offset) / self.rate
+
     def thumb_time(self, rl, plan):
         for e in plan["effects"]:
             if e["type"] == "freeze":
@@ -379,7 +405,6 @@ class Reel:
 
     # -- composition ---------------------------------------------------------------
     def compose(self, plan, t, src, half, face, W, H, band):
-        import cv2
         s = cine_edit.shot_at(plan, t)
         sw, sh = src.shape[1], src.shape[0]
         y0b, y1b = band
@@ -550,7 +575,7 @@ class Reel:
         text = self.hook_text or (rl[0]["text"] if rl else "")
         key = self.hook_key if self.hook_text else (rl[0]["key"] if rl else -1)
         if text:
-            h = cine_text.Hook(text, key, k=1.15, cy=1250, until=99)
+            h = cine_text.Hook(text, key, k=1.15, cy=1420, until=99)
             h.draw(img, 0.0)
         sig, x, dy = cine_text.signature(self.song, 1.0, 1080)
         cine_text.blend(img, sig, x, 1585 + dy, 0.95)

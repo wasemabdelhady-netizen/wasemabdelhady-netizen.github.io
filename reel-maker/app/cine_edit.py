@@ -23,17 +23,20 @@ STYLE_NAMES = {
     "D": "D — دراما (Drama)",
 }
 
-# framings: z = zoom inside the output aspect (1 = widest), eye = where the face
-# centre sits (fraction of the frame height), dx/dy = offset in frame widths/heights
+# framings: face = how much of the frame height the face takes (works for 16:9 and
+# vertical footage alike); z = plain zoom (1 = widest) when there is no `face`;
+# eye = where the face centre sits (fraction of the frame height, negative = below
+# the frame, i.e. the shot looks at the hands/chest); dx/dy = offset in frame sizes
 WIDE = dict(z=1.0, eye=0.40)
-MED = dict(z=1.22, eye=0.40)
-CLOSE = dict(z=1.5, eye=0.42)
-ECU = dict(z=1.85, eye=0.47)
-P_WIDE = dict(z=1.0, eye=0.45)         # panel framings (landscape panels)
-P_FACE = dict(z=2.1, eye=0.50)
-P_EYES = dict(z=3.3, eye=0.62)
-P_MOUTH = dict(z=3.0, eye=0.22)
-P_SIDE = dict(z=1.6, eye=0.48, dx=0.18)
+MED = dict(face=0.22, eye=0.40)
+CLOSE = dict(face=0.30, eye=0.42)
+ECU = dict(face=0.40, eye=0.45)
+IG_OPEN = dict(face=0.24, eye=0.56)    # IG/FB opening: room for the hook above the head
+P_WIDE = dict(z=1.0, eye=0.45)         # panel framings (landscape strips)
+P_FACE = dict(face=0.75, eye=0.50)
+P_EYES = dict(face=1.45, eye=0.62)
+P_HANDS = dict(face=0.55, eye=-0.75)   # gestures / chest
+P_SIDE = dict(face=0.6, eye=0.48, dx=0.18)
 
 
 class Ctx:
@@ -187,8 +190,8 @@ def build_b(c):
     cuts = c.cut_times()
     kl = c.lines[c.key_line()] if c.lines else None
     shots, effects = [], []
-    sets = [[P_WIDE, P_FACE, P_EYES], [P_EYES, P_WIDE, P_MOUTH], [P_FACE, P_SIDE, P_WIDE],
-            [P_MOUTH, P_FACE, P_EYES]]
+    sets = [[P_WIDE, P_EYES, P_HANDS], [P_EYES, P_WIDE, P_FACE], [P_FACE, P_HANDS, P_WIDE],
+            [P_SIDE, P_FACE, P_EYES]]
     k = 0
     for i, (a, b) in enumerate(zip(cuts, cuts[1:])):
         if i == 0:
@@ -205,10 +208,16 @@ def build_b(c):
         # beat cuts inside the panel shot: one panel changes framing every 2 beats
         swaps = []
         bt = [x[0] for x in c.beats if a + 0.2 < x[0] < b - 0.2]
-        pool = [P_WIDE, P_FACE, P_EYES, P_MOUTH, P_SIDE]
+        pool = [P_WIDE, P_FACE, P_EYES, P_HANDS, P_SIDE]
+        cur = list(base)
         for j, t in enumerate(bt[1::2]):
             panel = j % 3
-            choice = pool[(k + j * 2 + panel) % len(pool)]
+            n = (k + j * 2 + panel) % len(pool)
+            for step in range(len(pool)):  # never the same framing in two panels
+                choice = pool[(n + step) % len(pool)]
+                if all(choice != cur[q] for q in range(3)):
+                    break
+            cur[panel] = choice
             swaps.append((t, panel, choice))
         shots.append(shot(a, b, kind="panels", panels=base, swaps=swaps))
     if not c.ig:  # max two soft flashes, far apart
@@ -244,7 +253,6 @@ def build_c(c):
         shots.append(shot(a, b, framing=f, push=(1.0, 1.09), dx=f.get("dx", 0.0)))
     for b in breaks:
         effects.append(fx("burn", b - 0.35, b + 0.35, white=not c.ig, seed=int(b * 13)))
-    last = -10.0
     for s, e in sorted(c.long_notes(), key=lambda n: -(n[1] - n[0]))[:6]:
         if len([x for x in effects if x["type"] == "echo"]) >= 3:
             break
@@ -335,6 +343,15 @@ def plan(style, ctx):
     effects.sort(key=lambda e: e["t0"])
     if ctx.ig:  # nothing may cover the face in the first second
         effects = [e for e in effects if e["t0"] >= 1.0 or e["type"] in ("echo",)]
+        # face lower in the opening shot: clean headroom for the big sound-off hook
+        first = shots[0]
+        if first["kind"] != "single":
+            first.clear()
+            first.update(shot(0.0, shots[1]["t0"] if len(shots) > 1 else ctx.dur))
+        first["framing"] = dict(IG_OPEN)
+        first["push"] = (1.0, 1.03)
+        first.pop("punches", None)
+        first.pop("dx", None)
     return dict(style=style, shots=shots, effects=effects, opts=opts)
 
 

@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<title>بنك الألحان</title>
+<meta name="theme-color" content="#0a0a0a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="بنك الألحان">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+<header class="top">
+  <h1 id="title">بنك الألحان</h1>
+  <button class="icon-btn" id="menuBtn" aria-label="القائمة">⋯</button>
+</header>
+<main id="view"></main>
+<nav class="nav">
+  <a href="#/" data-nav="rec"><span>●</span>سجّل</a>
+  <a href="#/lib" data-nav="lib"><span>☰</span>المكتبة</a>
+</nav>
+<div class="sheet-bg" id="sheetBg" hidden></div>
+<div class="sheet" id="sheet" hidden></div>
+<div class="busy" id="busy" hidden><div class="spin"></div><p id="busyText">بحلّل…</p></div>
+<div class="toast" id="toast" hidden></div>
+<input type="file" id="importFile" accept=".zip,application/zip" hidden>
+<script type="module" src="js/app.js"></script>
+</body>
+</html>

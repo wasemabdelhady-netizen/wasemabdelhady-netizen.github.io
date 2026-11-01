@@ -21,6 +21,7 @@ Black `#0a0a0a` + gold `#e0a458` + text `#f5efe6`; fonts Syne (EN), Reem Kufi (A
 | `card/index.html` + `card/qr.png` | Wasem's personal QR card (saved to his home screen); code opens `/me` |
 | `me/index.html` | Target of the personal QR: counted in analytics, then forwards to `/` (never change the URL `/me`) |
 | `qr/index.html` | Target of the printed QR code: counted in analytics, then forwards to `/new/` (never change the URL `/qr`) |
+| `melody/` | «بنك الألحان»: Wasem's private melody-idea PWA (noindex, not in nav/sitemap, no tracking on purpose). Data stays in IndexedDB on his phone. Accuracy test: `node tools/melody-test.mjs [--hard] [-v]`. Bump `VERSION` in `melody/sw.js` when its files change. |
 | `covers/` | `<slug>.jpg` (900px), `<slug>.webp`, `<slug>-400.webp` |
 | `audio/` | `<slug>.mp3` — 20s preview, 128k, 0.4s fade in / 0.6s fade out |
 | `assets/` | `song.css`, `song.js`, `share.js` (story images), `press.*`, `write.*` |

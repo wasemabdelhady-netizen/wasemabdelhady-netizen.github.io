@@ -36,6 +36,7 @@ try:
     import session as S
     import song as G
     import runs as RU
+    import breath as BR
 except Exception:
     crash_log(traceback.format_exc())
     raise
@@ -253,6 +254,8 @@ class Engine(threading.Thread):
                     self.rec.write(blk)
                 fr = self.tracker.feed(blk)
                 with self.lock:
+                    if hasattr(self.session, "feed_raw"):
+                        self.session.feed_raw(blk)
                     self.session.process(fr)
                     now = self.session.now
                 self.triggers(now)
@@ -456,6 +459,7 @@ class App:
         if self.v["stem"].get() and os.path.isfile(self.v["stem"].get()):
             self.stem_lb.configure(text=os.path.basename(self.v["stem"].get()))
         self.runs_tab = RunsTab(self)
+        self.breath_tab = BreathTab(self)
         root.protocol("WM_DELETE_WINDOW", self.quit)
         root.after(40, self.tick)
         if autotest:
@@ -630,13 +634,13 @@ class App:
                 return
             mixer = Mixer()
         lat = 0.0 if plan.mode == "calib" else self.latency(source, mixer)
-        self.session = S.Session(plan, lat)
+        self.session = getattr(plan, "session_cls", S.Session)(plan, lat)
         rec = None
         self.wav = None
         if self.b["rec"].get() and plan.mode != "calib":
             self.wav = E.recording_path("%s %s" % (plan.mode, self.v["start"].get()))
             rec = E.WavRecorder(self.wav)
-        self.blind = self.b["blind"].get() and plan.mode not in ("calib", "free")
+        self.blind = self.b["blind"].get() and plan.mode not in ("calib", "free", "hold", "sss", "phrase")
         self.eng = Engine(self.session, source, mixer, self.v["ref"].get(), rec)
         self.t0 = time.time()
         self.ended = False
@@ -699,6 +703,10 @@ class App:
         if sess.mode in ("runs", "drill"):
             self.sync()
             self.runs_tab.finished(sess, dur)
+            return
+        if sess.mode in ("hold", "sss", "phrase"):
+            self.sync()
+            self.breath_tab.finished(sess, dur)
             return
         e = S.history_entry(sess, dur, wav=self.wav, blind=self.blind)
         self.last = e
@@ -857,6 +865,8 @@ class App:
                     self.finish()
                 elif self.session.mode in ("runs", "drill"):
                     self.runs_tab.live()
+                elif self.session.mode in ("hold", "sss", "phrase"):
+                    self.breath_tab.live()
                 else:
                     self.update_live()
         except Exception:
@@ -1186,7 +1196,7 @@ class App:
         if i == len(plans) and not getattr(self, "runs_done", False):
             self.runs_done = True
             self.auto_i -= 1
-            self.runs_tab.autotest(self.sim_for("runs", 20), self.auto_next)
+            self.runs_tab.autotest(self.sim_for("runs", 20), lambda: self.breath_tab.autotest(self.auto_next))
             return
         if i >= len(plans):
             self.nb.select(0)
@@ -1832,6 +1842,262 @@ class RunsTab:
         a.b["blind"].set(False)
         self.rate.set(4.0)
         self.load(path, then=loaded)
+
+
+# ------------------------------------------------------------- «النَفَس» tab
+class BreathTab:
+    def __init__(self, app):
+        self.app = app
+        a = app
+        f = ttk.Frame(a.nb, padding=10)
+        a.nb.add(f, text="  النَفَس  ")
+        self.f = f
+        f.columnconfigure(0, weight=1)
+        f.rowconfigure(2, weight=1)
+        ttk.Label(f, text="⚠  " + BR.SAFETY, foreground="#e8c547", font=("Segoe UI", 10, "bold")).grid(row=0, column=0, sticky="e")
+        row = ttk.Frame(f)
+        row.grid(row=1, column=0, sticky="ew", pady=6)
+        for i in range(3):
+            row.columnconfigure(i, weight=1)
+        hist = E.load_history()
+        # hold
+        h = ttk.LabelFrame(row, text="  امسك النوتة  ", padding=8)
+        h.grid(row=0, column=2, sticky="nsew", padx=4)
+        self.note_v = tk.StringVar(value=E.note_name(BR.suggest_note(hist)))
+        cb = ttk.Combobox(h, textvariable=self.note_v, state="readonly", width=6, values=E.note_choices(43, E.TOP_LIMIT))
+        cb.grid(row=0, column=0, sticky="w")
+        ttk.Label(h, text="النوتة").grid(row=0, column=1, sticky="e")
+        ttk.Button(h, text="اقترح", command=lambda: self.note_v.set(E.note_name(BR.suggest_note(E.load_history())))).grid(row=0, column=2, padx=4)
+        ttk.Button(h, text="▶ ابدأ", style="Go.TButton", command=self.hold).grid(row=1, column=0, columnspan=3, sticky="ew", pady=4)
+        self.hold_lb = ttk.Label(h, text="", style="Hint.TLabel", justify="right")
+        self.hold_lb.grid(row=2, column=0, columnspan=3, sticky="e")
+        # sss
+        x = ttk.LabelFrame(row, text="  «سسس» — شهيق · حبس · زفير  ", padding=8)
+        x.grid(row=0, column=1, sticky="nsew", padx=4)
+        self.pat_v = tk.StringVar(value=a.cfg.get("sss_pattern", "4-4-8"))
+        ttk.Combobox(x, textvariable=self.pat_v, state="readonly", width=8, values=[k for k, _ in BR.PATTERNS]).grid(row=0, column=0, sticky="w")
+        ttk.Label(x, text="النمط").grid(row=0, column=1, sticky="e")
+        self.rounds_v = tk.StringVar(value="3")
+        tk.Spinbox(x, from_=1, to=8, textvariable=self.rounds_v, width=3, bg="#1a1714", fg=TEXT, buttonbackground="#2a241d").grid(row=1, column=0, sticky="w")
+        ttk.Label(x, text="مرات").grid(row=1, column=1, sticky="e")
+        ttk.Button(x, text="▶ ابدأ", style="Go.TButton", command=self.sss).grid(row=2, column=0, columnspan=2, sticky="ew", pady=4)
+        self.sss_lb = ttk.Label(x, text="", style="Hint.TLabel", justify="right")
+        self.sss_lb.grid(row=3, column=0, columnspan=2, sticky="e")
+        # phrase
+        p = ttk.LabelFrame(row, text="  جملة في نَفَس واحد  ", padding=8)
+        p.grid(row=0, column=0, sticky="nsew", padx=4)
+        ttk.Label(p, text="الجملة = التمرين المختار في «العُرَب» (بسرعة 2.5 نوتة/ث)", style="Hint.TLabel").grid(row=0, column=0, sticky="e")
+        ttk.Button(p, text="▶ ابدأ", style="Go.TButton", command=self.phrase).grid(row=1, column=0, sticky="ew", pady=4)
+        self.ph_lb = ttk.Label(p, text="", style="Hint.TLabel", justify="right")
+        self.ph_lb.grid(row=2, column=0, sticky="e")
+        self.cv = tk.Canvas(f, bg=PANEL, highlightthickness=0, height=230)
+        self.cv.grid(row=2, column=0, sticky="nsew")
+        ttk.Label(f, text="آخر 7 أيام", foreground=GOLD, font=("Segoe UI", 10, "bold")).grid(row=3, column=0, sticky="e", pady=(6, 0))
+        self.wk = tk.Canvas(f, bg=PANEL, highlightthickness=0, height=130)
+        self.wk.grid(row=4, column=0, sticky="ew")
+        self.wk.bind("<Configure>", lambda e: self.week())
+        self.refresh()
+
+    def refresh(self):
+        hh = E.load_history()
+        b = BR.best(hh, "hold", "held_s")
+        self.hold_lb.configure(text="أحسن رقم: %s" % ("—" if b is None else "%.1fs" % b))
+        b = BR.best(hh, "sss", "hiss_s")
+        self.sss_lb.configure(text="أطول «سسس»: %s" % ("—" if b is None else "%.1fs" % b))
+        self.ph_lb.configure(text="الهدف النهارده: %d مرات  ·  أحسن: %s" % (BR.phrase_target(hh), BR.best(hh, "phrase", "reps") or "—"))
+        self.week()
+
+    def phrase_notes(self):
+        rt = self.app.runs_tab
+        return RU.drill_notes(rt.dv["maq"].get(), rt.dv["kind"].get(), E.parse_note(rt.dv["start"].get()), 2.5)
+
+    # -- start ---------------------------------------------------------------------
+    def hold(self, sim=None):
+        if not self.app.eng:
+            self.app.start(sim=sim, plan=BR.plan_hold(E.parse_note(self.note_v.get())))
+
+    def sss(self, sim=None):
+        if not self.app.eng:
+            self.app.cfg["sss_pattern"] = self.pat_v.get()
+            try:
+                n = max(1, min(8, int(self.rounds_v.get())))
+            except ValueError:
+                n = 3
+            self.app.start(sim=sim, plan=BR.plan_sss(dict(BR.PATTERNS)[self.pat_v.get()], n))
+
+    def phrase(self, sim=None):
+        if self.app.eng:
+            return
+        try:
+            notes = self.phrase_notes()
+        except E.PlanError:
+            messagebox.showwarning("PitchTrainer", "التمرين المختار عالي — غيّر القرار في «العُرَب»")
+            return
+        self.app.start(sim=sim, plan=BR.plan_phrase(notes, BR.phrase_target(E.load_history())))
+
+    # -- live + results ----------------------------------------------------------------
+    def live(self):
+        a = self.app
+        s = a.session
+        with a.eng.lock:
+            now = s.now_a
+            frames = list(s.frames[-2500:])
+            H = list(s.H[-60:])
+        cv = self.cv
+        cv.delete("all")
+        W, H_ = max(cv.winfo_width(), 300), max(cv.winfo_height(), 150)
+        if s.mode == "sss":
+            ph = [p for p in s.plan.phases if p[1] <= now < p[2]]
+            if ph:
+                kind, t0, t1, r = ph[0]
+                left = t1 - now
+                txt = {"in": "شهيق", "hold": "احبس", "out": "زفير «سسس»"}[kind]
+                col = {"in": "#3987e5", "hold": GOLD, "out": "#4cc38a"}[kind]
+                cv.create_text(W / 2, H_ / 2 - 40, text=txt, fill=col, font=("Segoe UI", 26, "bold"))
+                cv.create_text(W / 2, H_ / 2 + 20, text="%d" % int(np.ceil(left)), fill=TEXT, font=("Segoe UI", 40, "bold"))
+                cv.create_rectangle(W * 0.2, H_ - 30, W * 0.2 + W * 0.6 * (now - t0) / (t1 - t0), H_ - 18, fill=col, width=0)
+                cv.create_text(W - 10, 14, text="%d / %d" % (r + 1, s.plan.phases[-1][3] + 1), anchor="e", fill=MUTED)
+            else:
+                cv.create_text(W / 2, H_ / 2, text="استريح…", fill=MUTED, font=("Segoe UI", 20, "bold"))
+            if H:
+                hf = H[-1][2]
+                cv.create_rectangle(10, H_ - 30, 10 + 100 * hf, H_ - 18, fill="#4cc38a" if hf > 0.45 else "#5a4a35", width=0)
+                cv.create_text(10, H_ - 40, text="sss", anchor="w", fill=MUTED, font=("Segoe UI", 8))
+            return
+        st = s.steps[0]
+        ph, _ = s.phase_at(now)
+        a.phase_lb.configure(text={"listen": "اسمع  ♪", "sing": "دورك  ●", "gap": "خد نَفَس…"}.get(ph, ""))
+        v = [f for f in frames if f[1] is not None and f[0] >= st.sing0]
+        held = (v[-1][0] - v[0][0]) if v else 0.0
+        cv.create_text(W - 20, 30, text="%.1f s" % held, anchor="e", fill=TEXT, font=("Segoe UI", 30, "bold"))
+        if s.mode == "phrase":
+            reps = int((held + 0.15) // s.plan.phrase_s)
+            cv.create_text(20, 30, text="%d / %d" % (reps, s.plan.info["target"]), anchor="w", fill=GOLD, font=("Segoe UI", 30, "bold"))
+        t_a = max(st.sing0, now - 12)
+        ms = [f[1] for f in v] or [st.segs[0].m0]
+        lo, hi = min(ms + [st.segs[0].m0]) - 1, max(ms + [st.segs[0].m0]) + 1
+        X = lambda t: 40 + (t - t_a) / 12.5 * (W - 60)
+        Y = lambda m: H_ - 10 - (m - lo) / (hi - lo) * (H_ - 80)
+        if s.mode == "hold":
+            y = Y(st.segs[0].m0)
+            cv.create_line(40, y, W - 10, y, fill=GOLD, width=2)
+        pts = []
+        for f in v:
+            if f[0] >= t_a:
+                pts += [X(f[0]), Y(f[1])]
+        if len(pts) >= 4:
+            cv.create_line(*pts, fill="#7fd1ff", width=2)
+
+    def finished(self, sess, dur):
+        hh = E.load_history()
+        e = {"date": datetime.date.today().strftime("%Y-%m-%d"), "time": datetime.datetime.now().strftime("%H:%M"),
+             "mode": sess.mode, "duration_s": round(dur, 1)}
+        msg = ""
+        if sess.mode == "hold":
+            st = sess.steps[0]
+            r = BR.analyse_hold(np.array(sess.T) - sess.lat, sess.M, sess.D, st.sing0, st.segs[0].m0)
+            if r:
+                prev = BR.best(hh, "hold", "held_s")
+                e.update(r, note=sess.info["note"])
+                why = {"pitch": "الطبقة بدأت تقع", "level": "الصوت بدأ يضعف", "shake": "الصوت بدأ يهتز", None: "ثابت للآخر"}[r["why"]]
+                msg = "مسكت %.1f ث  ·  ثابت لحد %.1f ث (%s)%s" % (r["held_s"], r["steady_s"], why,
+                                                                 "  ·  رقم جديد!" if prev is None or r["held_s"] > prev else "")
+        elif sess.mode == "sss":
+            rs = BR.analyse_sss(sess.H, sess.plan.phases)
+            if rs:
+                e.update(pattern=sess.info["pattern"], rounds=rs, hiss_s=max(r_["hiss_s"] for r_ in rs),
+                         steady=round(float(np.mean([r_["steady"] for r_ in rs if r_["steady"] is not None] or [0])), 0))
+                msg = "  ·  ".join("%d: %.1f/%.0f ث" % (r_["round"], r_["hiss_s"], r_["target_s"]) for r_ in rs) + \
+                      "   ·  الثبات %d%%" % e["steady"]
+        else:
+            st = sess.steps[0]
+            r = BR.analyse_phrase(np.array(sess.T) - sess.lat, sess.M, st.sing0, sess.plan.phrase_s)
+            e.update(r, target=sess.info["target"])
+            msg = "%d مرات في نَفَس واحد (%.1f ث)  ·  الهدف %d%s" % (r["reps"], r["sung_s"], e["target"],
+                                                                   "  ✔" if r["reps"] >= e["target"] else "")
+        if len(e) > 5:
+            E.save_session(e)
+        self.app.phase_lb.configure(text="خلصت ✔")
+        self.cv.delete("all")
+        W = max(self.cv.winfo_width(), 300)
+        self.cv.create_text(W / 2, 60, text=msg or "مفيش صوت اتسجّل", fill=TEXT, font=("Segoe UI", 13, "bold"), width=W - 40)
+        self.refresh()
+        if self.app.autotest:
+            self.app.auto_results.append(e)
+            self.app.shot("%02d-%s-result" % (len(self.app.auto_results), sess.mode))
+            if self.auto_then:
+                self.app.root.after(1200, self.auto_then)
+
+    def week(self):
+        cv = self.wk
+        cv.delete("all")
+        W, H = max(cv.winfo_width(), 600), 130
+        hh = E.load_history()
+        charts = [("النوتة (ث)", BR.weekly(hh, "hold", "held_s"), "#3987e5"), ("«سسس» (ث)", BR.weekly(hh, "sss", "hiss_s"), "#199e70"),
+                  ("مرات الجملة", BR.weekly(hh, "phrase", "reps"), GOLD)]
+        cw = W / 3
+        for i, (title, rows, col) in enumerate(reversed(charts)):
+            x0 = i * cw + 10
+            cv.create_text(x0 + cw - 20, 10, text=title, anchor="e", fill=MUTED, font=("Segoe UI", 9, "bold"))
+            vals = [v for _, v in rows if v is not None]
+            top = max(vals + [1]) * 1.15
+            bw = (cw - 30) / 7
+            for k, (d, v) in enumerate(rows):
+                x = x0 + k * bw
+                if v is not None:
+                    h_ = (H - 40) * v / top
+                    cv.create_rectangle(x + 3, H - 18 - h_, x + bw - 3, H - 18, fill=col, width=0)
+                    cv.create_text(x + bw / 2, H - 24 - h_, text=("%.0f" % v) if v >= 10 else ("%.1f" % v if isinstance(v, float) else str(v)),
+                                   fill=TEXT, font=("Segoe UI", 8))
+                cv.create_text(x + bw / 2, H - 8, text=d[8:], fill=MUTED, font=("Segoe UI", 8))
+
+    # -- CI ------------------------------------------------------------------------------
+    def autotest(self, then):
+        a = self.app
+        a.nb.select(2)
+        lat = a.autotest["sim_lat"]
+        self.auto_then = None
+
+        def hold_sim(plan):
+            st = plan.steps[0]
+            n = int((st.sing0 + 16) * E.SR)
+            tr = np.full(n, np.nan)
+            i0, L = int((st.sing0 + 0.3 + lat) * E.SR), int(12 * E.SR)
+            u = np.arange(L) / E.SR
+            tr[i0:i0 + L] = st.segs[0].m0 + np.where(u > 8, -(u - 8) * 0.2, 0)
+            return E.synth_voice(tr, vibrato_cents=15, seed=2)
+
+        def sss_sim(plan):
+            return BR.hiss_signal(plan.phases, [5.4, 6.0], lat=lat)
+
+        def phrase_sim(plan):
+            st = plan.steps[0]
+            k = sum(1 for g in st.segs if g.t1 <= 3 * plan.phrase_s + 1e-6)
+            one = E.Step(0, st.root, st.segs[:k], listen=False)
+            one.sing0, one.sing1 = st.sing0, st.sing0 + one.dur
+            tr = E.singer_track([one], st.sing0 + one.dur + 3, late=lat, gap=0.0)
+            return E.synth_voice(tr, vibrato_cents=8, seed=3)
+
+        def step2():
+            self.auto_then = step3
+            self.pat_v.set("4-0-6")
+            self.rounds_v.set("2")
+            self.sss(sim=sss_sim)
+            a.root.after(3500, lambda: a.shot("12-sss-live"))
+
+        def step3():
+            self.auto_then = done
+            self.phrase(sim=phrase_sim)
+            a.root.after(9000, lambda: a.shot("13-phrase-live"))
+
+        def done():
+            self.auto_then = None
+            a.root.after(800, lambda: (a.shot("14-breath-week"), a.root.after(1500, then)))
+
+        self.auto_then = step2
+        self.note_v.set("G3")
+        self.hold(sim=hold_sim)
+        a.root.after(7000, lambda: a.shot("11-hold-live"))
 
 
 def best_speed(history, key):

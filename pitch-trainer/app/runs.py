@@ -22,13 +22,18 @@ AR_NAMES = ["دو", "دو#", "ري", "مي♭", "مي", "فا", "فا#", "صول
 
 
 def names(m):
-    """(Western, Arabic) — quarter tones as half-flat of the upper note: E♭½3 / مي♭½."""
+    """(Western, Arabic). Quarter tones: half-flat of a natural note (E♭½3 / مي♭½),
+    or half-sharp of the natural below when the upper note has an accidental
+    (F#-50c = F#½ / فا#½)."""
     n = int(math.floor(m + 0.5))
     c = (m - n) * 100
     w, a = E.NAMES[n % 12].replace("b", "♭") + "%d" % (n // 12 - 1), AR_NAMES[n % 12]
     if c < -25:
-        w = E.NAMES[n % 12].replace("b", "♭") + "♭½%d" % (n // 12 - 1)
-        a = AR_NAMES[n % 12] + "♭½" if "♭" not in AR_NAMES[n % 12] else AR_NAMES[n % 12].replace("♭", "♭♭½")
+        if len(E.NAMES[n % 12]) == 1:
+            w, a = E.NAMES[n % 12] + "♭½%d" % (n // 12 - 1), AR_NAMES[n % 12] + "♭½"
+        else:
+            k = n - 1
+            w, a = E.NAMES[k % 12] + "#½%d" % (k // 12 - 1), AR_NAMES[k % 12] + "#½"
     return w, a
 
 

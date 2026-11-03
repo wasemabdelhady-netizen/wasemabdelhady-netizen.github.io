@@ -472,6 +472,42 @@ def main():
     sk = RU.drill_notes("Sikah", "turn3", 52, 3.0)
     ok(abs(sk[0][2] - 51.5) < 1e-9 and any(abs((n[2] * 100) % 100 - 50) < 1e-6 for n in sk), "Sikah drill keeps its quarter tones")
 
+    print("— «النَفَس»")
+    import breath as BR
+
+    def brun(plan, y):
+        s_ = BR.BreathSession(plan, 0.0)
+        pt_ = E.PitchTracker()
+        for i in range(0, len(y), E.HOP):
+            b_ = y[i:i + E.HOP]
+            s_.feed_raw(b_)
+            s_.process(pt_.feed(b_))
+            if s_.done():
+                break
+        return s_
+    p = BR.plan_hold(55)
+    st = p.steps[0]
+    tr = np.full(int((st.sing0 + 14) * SR), np.nan)
+    i0, L = int((st.sing0 + 0.3) * SR), int(12 * SR)
+    u = np.arange(L) / SR
+    tr[i0:i0 + L] = 55 + np.where(u > 8, -(u - 8) * 0.2, 0)
+    s = brun(p, E.synth_voice(tr, vibrato_cents=15, seed=1))
+    r = BR.analyse_hold(s.T, s.M, s.D, st.sing0, 55)
+    ok(abs(r["held_s"] - 12) < 0.3 and abs(r["steady_s"] - 9.25) < 0.4 and r["why"] == "pitch",
+       "hold G3 12 s, sagging from 8 s at -20c/s: held %.1fs, steady until %.1fs (true 9.25, %s)" % (r["held_s"], r["steady_s"], r["why"]))
+    tr[i0:i0 + L] = 55
+    y = E.synth_voice(tr, vibrato_cents=15, seed=1)
+    env = np.ones(len(y))
+    env[i0 + int(9 * SR):i0 + L] = np.linspace(1, 0.1, L - int(9 * SR))
+    r = BR.analyse_hold(*(lambda s_: (s_.T, s_.M, s_.D))(brun(p, (y * env).astype(np.float32))), st.sing0, 55)
+    ok(abs(r["steady_s"] - 10.67) < 0.4 and r["why"] == "level", "voice fading from 9 s: weak from %.1fs (true 10.67, %s)" % (r["steady_s"], r["why"]))
+    p = BR.plan_sss((4, 4, 8), 3)
+    s = brun(p, BR.hiss_signal(p.phases, [7.5, 6.0, 8.0]))
+    got = [x["hiss_s"] for x in BR.analyse_sss(s.H, p.phases)]
+    ok(all(abs(g_ - w_) < 0.3 for g_, w_ in zip(got, [7.5, 6.0, 8.0])), "«سسس» 4-4-8: exhales %s s (true 7.5, 6.0, 8.0)" % got)
+    s = brun(p, E.synth_voice(np.full(int(p.end * SR), 55.0), seed=2))
+    ok(max(x["hiss_s"] for x in BR.analyse_sss(s.H, p.phases)) < 0.5, "a sung note is not taken for «سسس»")
+
     print("")
     print("Scoring accuracy (measured vs true note error):")
     for name, n, mean, mx, cls in acc:

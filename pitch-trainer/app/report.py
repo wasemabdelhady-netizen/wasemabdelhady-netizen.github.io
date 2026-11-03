@@ -75,18 +75,20 @@ def build(history, today=None):
     today = today or datetime.date.today()
     ds = today.strftime("%Y-%m-%d")
     runs_today = [e for e in history if e.get("date") == ds and e.get("mode") in ("runs", "drill")]
-    todays = [e for e in history if e.get("date") == ds and e.get("mode") not in ("calib", "runs", "drill")]
+    BREATH = ("hold", "sss", "phrase")
+    breath_today = [e for e in history if e.get("date") == ds and e.get("mode") in BREATH]
+    todays = [e for e in history if e.get("date") == ds and e.get("mode") not in ("calib", "runs", "drill") + BREATH]
     before = [e for e in history if e.get("date", "") < ds and e.get("notes")]
     L = []
     L.append("# تقرير التمرين — %s (%s · %s)" % (ds, DAYS_AR[today.weekday()], day_kind(today)))
     L.append("")
     L.append("الأساس: متوسط %.1fc · %.0f%% مظبوط — الهدف: %.0f%% مظبوط" % (E.BASELINE_CENTS, E.BASELINE_EXACT, E.GOAL_EXACT))
     L.append("")
-    if not todays and not runs_today:
+    if not todays and not runs_today and not breath_today:
         L.append("مفيش جلسات متسجلة النهارده.")
         return "\n".join(L) + "\n"
     if not todays:
-        return "\n".join(L + runs_section(history, runs_today)) + "\n"
+        return "\n".join(L + runs_section(history, runs_today) + breath_section(history, breath_today, ds)) + "\n"
     t = totals(todays)
     mins = sum(e.get("duration_s", 0) for e in todays) / 60.0
     L.append("## الملخص")
@@ -145,7 +147,28 @@ def build(history, today=None):
                 L.append("- %s · %s · %s" % (fmt(o["t"]), o["label"], "مش متغنية" if o["err"] is None else "%+.0fc" % o["err"]))
             L.append("")
     L += runs_section(history, runs_today)
+    L += breath_section(history, breath_today, ds)
     return "\n".join(L) + "\n"
+
+
+def breath_section(history, today, ds):
+    if not today:
+        return []
+    L = ["## النَفَس", "", "| التمرين | النهارده | أحسن رقم | آخر مرة قبل النهارده |", "|---|---|---|---|"]
+    for mode, key, name, unit in (("hold", "held_s", "مسك النوتة", "ث"), ("sss", "hiss_s", "«سسس»", "ث"), ("phrase", "reps", "جملة في نَفَس واحد", "مرات")):
+        t = [e[key] for e in today if e.get("mode") == mode and e.get(key) is not None]
+        if not t:
+            continue
+        allv = [e[key] for e in history if e.get("mode") == mode and e.get(key) is not None]
+        prev = [e for e in history if e.get("mode") == mode and e.get("date", "") < ds and e.get(key) is not None]
+        extra = ""
+        if mode == "hold":
+            st = [e["steady_s"] for e in today if e.get("mode") == "hold" and e.get("steady_s") is not None]
+            extra = " (ثابت لحد %.1f)" % max(st) if st else ""
+        L.append("| %s | %s %s%s | %s %s | %s |" % (name, max(t), unit, extra, max(allv), unit,
+                                                   "%s %s (%s)" % (prev[-1][key], unit, prev[-1]["date"]) if prev else "—"))
+    L += ["", "⚠ وقّف لو دخت. متضغطش على نفسك.", ""]
+    return L
 
 
 def runs_section(history, runs_today):

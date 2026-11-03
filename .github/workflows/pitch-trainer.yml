@@ -93,7 +93,7 @@ jobs:
           $fail = @()
           if ([math]::Abs($r.calib.lat - 0.135) -gt 0.02) { $fail += "calibration $($r.calib.lat)" }
           $modes = ($r.sessions | ForEach-Object { $_.mode }) -join ","
-          if ($modes -ne "drone,callresp,song,onset,stability,leaps,ajnas,runs,drill") { $fail += "modes $modes" }
+          if ($modes -ne "drone,callresp,song,onset,stability,leaps,ajnas,runs,drill,hold,sss,phrase") { $fail += "modes $modes" }
           $ru = $r.runs
           if ($ru.runs.Count -lt 1 -or $ru.runs[0].n -lt 10 -or [math]::Abs($ru.runs[0].rate - 7.1) -gt 0.6) { $fail += "run detection" }
           if ($ru.maqam.maqam -ne "Ajam") { $fail += "maqam guess $($ru.maqam.maqam)" }
@@ -102,7 +102,13 @@ jobs:
           $dd = $r.sessions | Where-Object { $_.mode -eq "drill" }
           if ($dd.score -lt 80 -or $ru.drill_nps.PSObject.Properties.Count -lt 1) { $fail += "drill progression" }
           "rubberband in this ffmpeg: $($ru.rubberband)"
-          foreach ($s in ($r.sessions | Where-Object { $_.mode -notin @("runs", "drill") })) {
+          $bh = $r.sessions | Where-Object { $_.mode -eq "hold" }
+          if ([math]::Abs($bh.held_s - 12) -gt 0.5 -or [math]::Abs($bh.steady_s - 9.25) -gt 0.6 -or $bh.why -ne "pitch") { $fail += "hold analysis" }
+          $bs = $r.sessions | Where-Object { $_.mode -eq "sss" }
+          if ([math]::Abs($bs.rounds[0].hiss_s - 5.4) -gt 0.4 -or [math]::Abs($bs.rounds[1].hiss_s - 6.0) -gt 0.4) { $fail += "sss analysis" }
+          $bp = $r.sessions | Where-Object { $_.mode -eq "phrase" }
+          if ($bp.reps -ne 3) { $fail += "phrase reps $($bp.reps)" }
+          foreach ($s in ($r.sessions | Where-Object { $_.mode -notin @("runs", "drill", "hold", "sss", "phrase") })) {
             if ($s.max_target -gt 67.0001) { $fail += "$($s.mode): target above G4" }
             if ($s.notes -lt 2) { $fail += "$($s.mode): no notes scored" }
             if ($s.truth_n -gt 0 -and $s.truth_mae -gt 2) { $fail += "$($s.mode): scoring off by $($s.truth_mae)c" }

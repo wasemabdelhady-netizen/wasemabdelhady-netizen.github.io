@@ -74,16 +74,19 @@ def totals(entries):
 def build(history, today=None):
     today = today or datetime.date.today()
     ds = today.strftime("%Y-%m-%d")
-    todays = [e for e in history if e.get("date") == ds and e.get("mode") != "calib"]
+    runs_today = [e for e in history if e.get("date") == ds and e.get("mode") in ("runs", "drill")]
+    todays = [e for e in history if e.get("date") == ds and e.get("mode") not in ("calib", "runs", "drill")]
     before = [e for e in history if e.get("date", "") < ds and e.get("notes")]
     L = []
     L.append("# تقرير التمرين — %s (%s · %s)" % (ds, DAYS_AR[today.weekday()], day_kind(today)))
     L.append("")
     L.append("الأساس: متوسط %.1fc · %.0f%% مظبوط — الهدف: %.0f%% مظبوط" % (E.BASELINE_CENTS, E.BASELINE_EXACT, E.GOAL_EXACT))
     L.append("")
-    if not todays:
+    if not todays and not runs_today:
         L.append("مفيش جلسات متسجلة النهارده.")
         return "\n".join(L) + "\n"
+    if not todays:
+        return "\n".join(L + runs_section(history, runs_today)) + "\n"
     t = totals(todays)
     mins = sum(e.get("duration_s", 0) for e in todays) / 60.0
     L.append("## الملخص")
@@ -141,7 +144,23 @@ def build(history, today=None):
             for o in e["off_notes"][:15]:
                 L.append("- %s · %s · %s" % (fmt(o["t"]), o["label"], "مش متغنية" if o["err"] is None else "%+.0fc" % o["err"]))
             L.append("")
+    L += runs_section(history, runs_today)
     return "\n".join(L) + "\n"
+
+
+def runs_section(history, runs_today):
+    if not runs_today:
+        return []
+    L = ["## العُرَب", "", "| الوقت | العُربة / التمرين | السرعة | نوتة/ث | الدرجة | مضبوطة/قريبة/فاتت | أحسن سرعة (≥80%) |",
+         "|---|---|---|---|---|---|---|"]
+    for e in runs_today:
+        best = [x["nps"] for x in history if x.get("key") == e.get("key") and (x.get("score") or 0) >= 80]
+        L.append("| %s | %s | %s | %.1f | %.0f%% | %d/%d/%d | %s |" % (
+            e.get("time", ""), e.get("name", ""), "%.0f%%%s" % (100 * (e.get("speed") or 1), (" %+d" % e["semis"]) if e.get("semis") else ""),
+            e.get("nps", 0), e.get("score", 0), e.get("hits", 0), e.get("close", 0), e.get("missed", 0),
+            "%.1f n/s" % max(best) if best else "—"))
+    L.append("")
+    return L
 
 
 def fmt(t):

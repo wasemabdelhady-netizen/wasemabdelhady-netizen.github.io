@@ -5,6 +5,7 @@ import json
 import os
 import pathlib
 import queue
+import subprocess
 import sys
 import threading
 import time
@@ -34,6 +35,7 @@ try:
     import report
     import session as S
     import song as G
+    import runs as RU
 except Exception:
     crash_log(traceback.format_exc())
     raise
@@ -226,7 +228,9 @@ class Engine(threading.Thread):
             at = st.listen0 if st.listen else st.sing0
             if now < at - 0.03:
                 break
-            if st.listen:
+            if getattr(st, "clip", None) is not None:      # runs: the recording (or the drill on oud)
+                self.mixer.play(st.clip)
+            elif st.listen:
                 self.mixer.play(oud.render_step(st, kind=self.ref_kind))
             elif plan.mode == "song":
                 a = plan.song.audio(plan.play)
@@ -303,6 +307,10 @@ class App:
         st.configure("TLabelframe.Label", background=BG, foreground=GOLD, font=("Segoe UI", 10, "bold"))
         st.configure("Treeview", background=PANEL, fieldbackground=PANEL, foreground=TEXT, rowheight=22)
         st.configure("Treeview.Heading", background="#2a241d", foreground=GOLD)
+        st.configure("TNotebook", background=BG, borderwidth=0)
+        st.configure("TNotebook.Tab", background="#2a241d", foreground=TEXT, padding=(16, 5), font=("Segoe UI", 11, "bold"))
+        st.map("TNotebook.Tab", background=[("selected", GOLD)], foreground=[("selected", BG)])
+        st.configure("Horizontal.TScale", background=BG, troughcolor="#1a1714")
 
         cfg = self.cfg = self.load_cfg()
         V = lambda k, d: tk.StringVar(value=cfg.get(k, d))
@@ -317,7 +325,11 @@ class App:
         if self.v["mode"].get() == "exercise":
             self.v["mode"].set("basic")
 
-        outer = ttk.Frame(root, padding=10)
+        self.nb = ttk.Notebook(root)
+        self.nb.pack(fill="both", expand=True)
+        tab = ttk.Frame(self.nb)
+        self.nb.add(tab, text="  التمارين  ")
+        outer = ttk.Frame(tab, padding=10)
         outer.pack(fill="both", expand=True)
         outer.columnconfigure(1, weight=1)
         outer.rowconfigure(1, weight=1)
@@ -443,6 +455,7 @@ class App:
         self.sync()
         if self.v["stem"].get() and os.path.isfile(self.v["stem"].get()):
             self.stem_lb.configure(text=os.path.basename(self.v["stem"].get()))
+        self.runs_tab = RunsTab(self)
         root.protocol("WM_DELETE_WINDOW", self.quit)
         root.after(40, self.tick)
         if autotest:
@@ -514,10 +527,9 @@ class App:
             return {}
 
     def save_cfg(self):
-        d = {k: v.get() for k, v in self.v.items()}
+        d = dict(self.cfg)               # keeps lat_ms, drill speeds, run settings
+        d.update({k: v.get() for k, v in self.v.items()})
         d.update({k: v.get() for k, v in self.b.items()})
-        if self.cfg.get("lat_ms") is not None:
-            d["lat_ms"] = self.cfg["lat_ms"]
         self.cfg = d
         try:
             with open(SETTINGS, "w", encoding="utf-8") as f:
@@ -684,6 +696,10 @@ class App:
             self.finish_calib(sess)
             self.sync()
             return
+        if sess.mode in ("runs", "drill"):
+            self.sync()
+            self.runs_tab.finished(sess, dur)
+            return
         e = S.history_entry(sess, dur, wav=self.wav, blind=self.blind)
         self.last = e
         if e["frames"] > 0 or e.get("notes"):
@@ -839,6 +855,8 @@ class App:
             if self.eng is not None:
                 if not self.eng.running and not self.eng.is_alive():
                     self.finish()
+                elif self.session.mode in ("runs", "drill"):
+                    self.runs_tab.live()
                 else:
                     self.update_live()
         except Exception:
@@ -1048,10 +1066,30 @@ class App:
                                       ("متوسط الانحراف (cents)  —  الأقل أحسن", "avg_cents", "%.0f",
                                        [(E.BASELINE_CENTS, "base 21.7c")])):
             ttk.Label(f, text=title, foreground=GOLD, font=("Segoe UI", 10, "bold")).pack(anchor="w")
-            cv = tk.Canvas(f, bg=PANEL, height=200, highlightthickness=0)
+            cv = tk.Canvas(f, bg=PANEL, height=165, highlightthickness=0)
             cv.pack(fill="x", pady=(2, 10))
             cv.update_idletasks()
             self.lines(cv, last, key, fmt, groups, refs, pct=(key == "exact_pct"))
+        sp = [(i, r["run_nps"]) for i, r in enumerate(last) if r.get("run_nps")]
+        if sp:
+            ttk.Label(f, text="سرعة العُرَب (نوتة/ث)  —  أسرع عُربة أو تمرين اتغنّى ≥ 80%", foreground=GOLD,
+                      font=("Segoe UI", 10, "bold")).pack(anchor="w")
+            cv = tk.Canvas(f, bg=PANEL, height=110, highlightthickness=0)
+            cv.pack(fill="x", pady=(2, 8))
+            cv.update_idletasks()
+            W, H, L_ = max(cv.winfo_width(), 600), 110, 44
+            hiv = max(v for _, v in sp) * 1.2
+            step = (W - L_ - 20) / max(1, len(last))
+            Y = lambda v: H - 18 - v / hiv * (H - 28)
+            for gv in np.linspace(0, hiv, 3):
+                cv.create_line(L_, Y(gv), W - 6, Y(gv), fill="#1d1a16")
+                cv.create_text(L_ - 6, Y(gv), text="%.0f" % gv, anchor="e", fill=MUTED, font=("Segoe UI", 8))
+            pts = [(L_ + step * (i + 0.5), Y(v)) for i, v in sp]
+            if len(pts) > 1:
+                cv.create_line(*[c for p_ in pts for c in p_], fill=GOLD, width=2)
+            for (x, y), (_, v) in zip(pts, sp):
+                cv.create_oval(x - 4, y - 4, x + 4, y + 4, fill=GOLD, outline=PANEL, width=2)
+            cv.create_text(pts[-1][0], pts[-1][1] - 10, text="%.1f" % sp[-1][1], fill=TEXT, font=("Segoe UI", 9, "bold"))
         tv = ttk.Treeview(f, columns=("d", "s", "m", "x", "c", "a", "h"), show="headings", height=7)
         for k, t, w in (("d", "Date", 100), ("s", "Sessions", 70), ("m", "Minutes", 70), ("x", "Exact", 70), ("c", "Close", 70),
                         ("a", "Avg cents", 80), ("h", "Highest stable", 110)):
@@ -1068,7 +1106,7 @@ class App:
 
     @staticmethod
     def lines(cv, rows, key, fmt, groups, refs, pct):
-        W, H = max(cv.winfo_width(), 600), 200
+        W, H = max(cv.winfo_width(), 600), 165
         L, B, T = 44, 24, 12
         allv = [r["groups"][g][key] for r in rows for g in groups if g in r["groups"] and r["groups"][g].get(key) is not None]
         hiv = 100.0 if pct else max([30.0] + [v * 1.15 for v in allv] + [x for x, _ in refs])
@@ -1133,17 +1171,25 @@ class App:
                 return E.synth_voice(tr, seed=seed)
             end = plan.steps[-1].sing1 + 1.5 + lat
             kw = dict(late=lat, offset_cents=off, scoop=(-45.0, 0.07))
+            if mode == "runs":   # legato run, small per-note errors
+                kw = dict(late=lat + 0.04, offset_cents=lambda st, k, s: float(rng.choice([-12, -6, 0, 4, 9])), gap=0.0)
             if mode == "stability":
                 kw.update(offset_cents=6.0, drift=(-30.0, 1.5), scoop=None)
             tr = E.singer_track(plan.steps, end, **kw)
             self.auto_truth = offs
-            return E.synth_voice(tr, vibrato_cents=25.0 if mode == "stability" else 12.0, seed=seed, noise=0.006)
+            return E.synth_voice(tr, vibrato_cents={"stability": 25.0, "runs": 0.0}.get(mode, 12.0), seed=seed, noise=0.006)
         return make
 
     def auto_next(self):
         plans = self.auto_plans()
         i = self.auto_i = getattr(self, "auto_i", -1) + 1
+        if i == len(plans) and not getattr(self, "runs_done", False):
+            self.runs_done = True
+            self.auto_i -= 1
+            self.runs_tab.autotest(self.sim_for("runs", 20), self.auto_next)
+            return
         if i >= len(plans):
+            self.nb.select(0)
             win = self.show_progress()
             win.geometry("+%d+%d" % (self.root.winfo_rootx() + 300, self.root.winfo_rooty() + 30))
             self.root.after(1200, lambda: (self.shot("90-progress"), self.root.after(1500, self.auto_write)))
@@ -1197,11 +1243,631 @@ class App:
 
     def auto_write(self):
         rp = self.day_report()
-        out = {"sessions": self.auto_results, "calib": self.calib, "report": rp,
+        out = {"sessions": self.auto_results, "calib": self.calib, "report": rp, "runs": getattr(self, "auto_runs", None),
                "history_days": E.daily(E.load_history()), "history_file": E.HISTORY_FILE,
                "sim_lat": self.autotest["sim_lat"]}
         with open(self.autotest["out"], "w", encoding="utf-8") as fh:
             json.dump(out, fh, ensure_ascii=False, indent=1, default=float)
+
+
+# ------------------------------------------------------------- «العُرَب» tab
+RUNS_DIR = os.path.join(ROOT, "runs")
+LEAD = 1.0          # seconds of the recording played before A
+
+
+class RunsTab:
+    """Load a recording, find its runs, practise one (A–B loop, speed, transpose,
+    oud note by note), sing it back (DTW score) and progressive drills."""
+
+    def __init__(self, app):
+        self.app = app
+        a = app
+        f = ttk.Frame(a.nb, padding=10)
+        a.nb.add(f, text="  العُرَب  ")
+        self.f = f
+        self.rec = None          # {"path", "audio", "T", "M", "conf", "notes", "maqam"}
+        self.runs = []
+        self.mixer = None
+        self.loop_job = None
+        self.result = None
+        self.ref = None          # current sing-back reference: notes on the session clock
+        cfg = a.cfg
+        f.columnconfigure(1, weight=1)
+        f.rowconfigure(1, weight=1)
+        top = ttk.Frame(f)
+        top.grid(row=0, column=0, columnspan=2, sticky="ew", pady=(0, 6))
+        ttk.Button(top, text="حمّل تسجيل…", command=self.pick).pack(side="right")
+        self.file_lb = ttk.Label(top, text="موال / أغنية طرب / تقسيم — WAV · MP3 · M4A · MP4", style="Hint.TLabel")
+        self.file_lb.pack(side="right", padx=8)
+        self.rate = tk.DoubleVar(value=cfg.get("run_rate", 4.0))
+        self.rate_lb = ttk.Label(top, text="", width=10)
+        self.rate_lb.pack(side="left")
+        ttk.Scale(top, from_=2.0, to=12.0, variable=self.rate, length=160,
+                  command=lambda _v: self.redetect()).pack(side="left", padx=4)
+        ttk.Label(top, text="حد السرعة (نوتة/ث)").pack(side="left", padx=(0, 10))
+        self.warn_lb = ttk.Label(top, text="", foreground="#e5534b")
+        self.warn_lb.pack(side="left", padx=10)
+
+        # ---- runs list (left) + edit
+        left = ttk.Frame(f)
+        left.grid(row=1, column=0, sticky="nsw", padx=(0, 10))
+        self.maq_lb = ttk.Label(left, text="", foreground=GOLD, font=("Segoe UI", 11, "bold"))
+        self.maq_lb.pack(anchor="e")
+        self.tree = ttk.Treeview(left, columns=("i", "nm", "t", "d", "n", "r", "j"), show="headings", height=11)
+        for k, t, w in (("i", "#", 30), ("nm", "الاسم", 80), ("t", "الوقت", 62), ("d", "المدة", 48), ("n", "نوتات", 46),
+                        ("r", "نوتة/ث", 54), ("j", "الجنس", 96)):
+            self.tree.heading(k, text=t)
+            self.tree.column(k, width=w, anchor="center")
+        self.tree.pack(fill="y", expand=True)
+        self.tree.bind("<<TreeviewSelect>>", lambda e: self.select())
+        ed = ttk.Frame(left)
+        ed.pack(fill="x", pady=(4, 0))
+        self.name_v = tk.StringVar()
+        ttk.Entry(ed, textvariable=self.name_v, width=14).pack(side="right")
+        ttk.Button(ed, text="سمّي", command=self.rename).pack(side="right", padx=2)
+        ttk.Button(ed, text="احذف", command=self.delete).pack(side="right", padx=2)
+        ed2 = ttk.Frame(left)
+        ed2.pack(fill="x", pady=2)
+        ttk.Button(ed2, text="قص على A–B", command=self.trim).pack(side="right", padx=2)
+        ttk.Button(ed2, text="ضيف عُربة من A–B", command=self.add).pack(side="right", padx=2)
+
+        # drills
+        dr = ttk.LabelFrame(left, text="  تمارين متدرّجة  ", padding=6)
+        dr.pack(fill="x", pady=(8, 0))
+        self.dv = {"maq": tk.StringVar(value=cfg.get("drill_maq", "Bayati")), "kind": tk.StringVar(value=cfg.get("drill_kind", "turn3")),
+                   "start": tk.StringVar(value=cfg.get("drill_start", "D3"))}
+        self.dcb = {}
+        for r, (k, lab, pairs) in enumerate((("maq", "المقام", [(m, "%s  %s" % (E.MAQAMAT[m]["ar"], m)) for m in RU.DRILL_MAQAMAT]),
+                                             ("kind", "الشكل", RU.DRILLS),
+                                             ("start", "القرار", [(n, n) for n in E.note_choices(43, E.TOP_LIMIT)]))):
+            ttk.Label(dr, text=lab).grid(row=r, column=1, sticky="e")
+            cb = ttk.Combobox(dr, state="readonly", width=24, values=[t for _, t in pairs])
+            keys = [x for x, _ in pairs]
+            cb.current(keys.index(self.dv[k].get()) if self.dv[k].get() in keys else 0)
+            cb.bind("<<ComboboxSelected>>", lambda e, k=k, cb=cb, keys=keys: (self.dv[k].set(keys[cb.current()]), self.show_drill()))
+            cb.grid(row=r, column=0, sticky="w", pady=2)
+            cb.keys = keys
+            self.dcb[k] = cb
+        self.drill_lb = ttk.Label(dr, text="", style="Hint.TLabel")
+        self.drill_lb.grid(row=3, column=0, columnspan=2, sticky="e")
+        ttk.Button(dr, text="▶ التمرين (عود ثم أنت)", style="Go.TButton", command=self.drill).grid(row=4, column=0, columnspan=2, sticky="ew", pady=(4, 0))
+
+        # ---- practice (right)
+        right = ttk.Frame(f)
+        right.grid(row=1, column=1, sticky="nsew")
+        right.columnconfigure(0, weight=1)
+        right.rowconfigure(1, weight=1)
+        self.notes_lb = tk.Text(right, height=2, bg=PANEL, fg=TEXT, relief="flat", font=("Segoe UI", 10), wrap="word")
+        self.notes_lb.grid(row=0, column=0, sticky="ew")
+        self.notes_lb.tag_configure("r", justify="right")
+        self.cv = tk.Canvas(right, bg=PANEL, highlightthickness=0, width=520, height=230)
+        self.cv.grid(row=1, column=0, sticky="nsew", pady=4)
+        pr = ttk.Frame(right)
+        pr.grid(row=2, column=0, sticky="ew")
+        self.pv = {"a": tk.StringVar(), "b": tk.StringVar(), "speed": tk.StringVar(value="75"), "semis": tk.StringVar(value="0")}
+        for lab, k, w in (("A", "a", 7), ("B", "b", 7)):
+            ttk.Label(pr, text=lab).pack(side="right", padx=(6, 2))
+            ttk.Entry(pr, textvariable=self.pv[k], width=w).pack(side="right")
+        ttk.Label(pr, text="السرعة %").pack(side="right", padx=(10, 2))
+        ttk.Combobox(pr, textvariable=self.pv["speed"], values=["50", "60", "75", "90", "100"], width=5).pack(side="right")
+        ttk.Label(pr, text="الطبقة (نص تون)").pack(side="right", padx=(10, 2))
+        tk.Spinbox(pr, from_=-12, to=12, textvariable=self.pv["semis"], width=4, bg="#1a1714", fg=TEXT,
+                   buttonbackground="#2a241d", insertbackground=TEXT).pack(side="right")
+        ttk.Button(pr, text="اقترح", command=self.suggest).pack(side="right", padx=4)
+        self.loop_v = tk.BooleanVar(value=True)
+        ttk.Checkbutton(pr, text="لوب", variable=self.loop_v).pack(side="right", padx=6)
+        bt = ttk.Frame(right)
+        bt.grid(row=3, column=0, sticky="ew", pady=4)
+        for txt, cmd in (("▶ اسمع", self.listen), ("♪ العود نوتة نوتة", self.oud_slow), ("● غنّي معاها", lambda: self.sing("along")),
+                         ("● غنّي بعدها", lambda: self.sing("after")), ("■ وقّف", self.stop)):
+            ttk.Button(bt, text=txt, command=cmd).pack(side="right", padx=2)
+        rs = ttk.LabelFrame(right, text="  النتيجة  ", padding=(8, 2))
+        rs.grid(row=4, column=0, sticky="ew")
+        self.slots = []
+        for i, cap in enumerate(("مضبوطة", "قريبة", "فاتت", "متأخرة", "السرعة", "الدرجة", "أحسن سرعة")):
+            rs.columnconfigure(i, weight=1)
+            ttk.Label(rs, text=cap, style="Hint.TLabel").grid(row=0, column=i, sticky="w")
+            v = ttk.Label(rs, text="—", font=("Segoe UI", 12, "bold"))
+            v.grid(row=1, column=i, sticky="w")
+            self.slots.append(v)
+        self.msg = ttk.Label(right, text="", style="Hint.TLabel")
+        self.msg.grid(row=5, column=0, sticky="w")
+        self.show_rate()
+        self.show_drill()
+
+    # -- recording + runs ------------------------------------------------------
+    def pick(self):
+        p = filedialog.askopenfilename(filetypes=[("Audio / video", "*.wav *.mp3 *.m4a *.mp4 *.flac *.ogg *.aac *.webm"), ("All", "*.*")])
+        if p:
+            self.load(os.path.normpath(p))
+
+    def load(self, path, then=None):
+        self.file_lb.configure(text="بقرا التسجيل وبطلّع الصوت…  " + os.path.basename(path))
+        box = {}
+
+        def work():
+            try:
+                au = G.decode(path)
+                T, M, conf = RU.melody(au.mean(1), progress=lambda p: box.__setitem__("p", p))
+                box["rec"] = {"path": path, "audio": au, "T": T, "M": M, "conf": conf, "notes": RU.fast_notes(T, M)}
+            except Exception as ex:
+                box["err"] = str(ex)
+                crash_log(traceback.format_exc())
+
+        th = threading.Thread(target=work, daemon=True)
+        th.start()
+
+        def wait():
+            if th.is_alive():
+                self.warn_lb.configure(text="%d%%" % (100 * box.get("p", 0)), foreground=MUTED)
+                self.app.root.after(200, wait)
+                return
+            if "err" in box:
+                self.file_lb.configure(text="مش قادر أقرا الملف")
+                messagebox.showerror("PitchTrainer", box["err"][:600])
+                return
+            self.rec = r = box["rec"]
+            c = RU.confidence(r["M"], r["conf"])
+            low = c["conf"] < 0.6 or c["voiced_pct"] < 25
+            self.warn_lb.configure(text=("⚠ ثقة القراية قليلة (%d%%) — النوتات ممكن تبقى غلط" % (100 * c["conf"])) if low
+                                   else "ثقة القراية %d%%" % (100 * c["conf"]), foreground="#e5534b" if low else MUTED)
+            vocal = [n for n in r["notes"] if n[1] - n[0] >= 0.05]
+            r["maqam"] = RU.guess_maqam(vocal)
+            self.maq_lb.configure(text="المقام: " + RU.maqam_label(r["maqam"]))
+            self.file_lb.configure(text=os.path.basename(path))
+            saved = self.load_runs()
+            if saved is not None:
+                self.runs = saved
+                self.fill()
+            else:
+                self.redetect()
+            if then:
+                then()
+        wait()
+
+    def runs_file(self):
+        base = os.path.basename(self.rec["path"])
+        return os.path.join(RUNS_DIR, base + ".json")
+
+    def load_runs(self):
+        try:
+            with open(self.runs_file(), encoding="utf-8") as fh:
+                d = json.load(fh)
+            if d.get("rate") != round(self.rate.get(), 1):
+                return None
+            return [RU.run_from(self.rec["notes"], r["t0"], r["t1"], r.get("name", "")) for r in d["runs"]]
+        except (OSError, ValueError, KeyError, TypeError):
+            return None
+
+    def save_runs(self):
+        if not self.rec:
+            return
+        os.makedirs(RUNS_DIR, exist_ok=True)
+        with open(self.runs_file(), "w", encoding="utf-8") as fh:
+            json.dump({"rate": round(self.rate.get(), 1), "runs": [{"t0": r["t0"], "t1": r["t1"], "name": r["name"]} for r in self.runs]},
+                      fh, ensure_ascii=False)
+
+    def show_rate(self):
+        self.rate_lb.configure(text="%.1f نوتة/ث" % self.rate.get())
+
+    def redetect(self):
+        self.rate.set(round(self.rate.get() * 2) / 2)
+        self.show_rate()
+        self.app.cfg["run_rate"] = self.rate.get()
+        if not self.rec:
+            return
+        self.runs = RU.find_runs(self.rec["notes"], self.rate.get())
+        self.fill()
+        self.save_runs()
+
+    def jins_of(self, r):
+        mq = self.rec.get("maqam") if self.rec else None
+        g = RU.guess_maqam(r["notes"], prefer=(mq["tonic"] * 100) % 1200 if mq else None)
+        return RU.maqam_label(g) if g else "—"
+
+    def fill(self):
+        self.tree.delete(*self.tree.get_children())
+        for i, r in enumerate(self.runs):
+            self.tree.insert("", "end", iid=str(i), values=(i + 1, r["name"] or "", G.fmt_t(r["t0"]), "%.1fs" % (r["t1"] - r["t0"]),
+                                                            len(r["notes"]), "%.1f" % r["rate"], self.jins_of(r)))
+        self.msg.configure(text="%d عُربة" % len(self.runs))
+        if self.runs:
+            self.tree.selection_set("0")
+
+    def cur(self):
+        sel = self.tree.selection()
+        return (int(sel[0]), self.runs[int(sel[0])]) if sel and int(sel[0]) < len(self.runs) else (None, None)
+
+    def select(self):
+        i, r = self.cur()
+        if r is None:
+            return
+        self.pv["a"].set(G.fmt_t(r["t0"]))
+        self.pv["b"].set(G.fmt_t(r["t1"]))
+        self.name_v.set(r["name"])
+        self.suggest()
+        self.notes_lb.delete("1.0", "end")
+        self.notes_lb.insert("end", "  ".join("%s %s" % RU.names(n[2])[::-1] for n in r["notes"]), "r")
+        self.result = None
+        self.draw()
+        self.show_best()
+
+    def ab(self):
+        a, b = G.parse_t(self.pv["a"].get()), G.parse_t(self.pv["b"].get())
+        if a is None or b is None or b - a < 0.15:
+            raise ValueError
+        return a, b
+
+    def rename(self):
+        i, r = self.cur()
+        if r is not None:
+            r["name"] = self.name_v.get().strip()
+            self.fill()
+            self.tree.selection_set(str(i))
+            self.save_runs()
+
+    def delete(self):
+        i, r = self.cur()
+        if r is not None:
+            del self.runs[i]
+            self.fill()
+            self.save_runs()
+
+    def trim(self):
+        i, r = self.cur()
+        try:
+            a, b = self.ab()
+        except ValueError:
+            return
+        nr = RU.run_from(self.rec["notes"], a, b, r["name"] if r else "") if self.rec else None
+        if nr and r is not None:
+            self.runs[i] = nr
+            self.fill()
+            self.tree.selection_set(str(i))
+            self.save_runs()
+
+    def add(self):
+        try:
+            a, b = self.ab()
+        except ValueError:
+            return
+        nr = RU.run_from(self.rec["notes"], a, b, self.name_v.get().strip()) if self.rec else None
+        if nr:
+            self.runs.append(nr)
+            self.runs.sort(key=lambda r: r["t0"])
+            self.fill()
+            self.tree.selection_set(str(self.runs.index(nr)))
+            self.save_runs()
+
+    def speed(self):
+        try:
+            return max(0.25, min(1.5, float(self.pv["speed"].get().strip().rstrip("%")) / 100.0))
+        except ValueError:
+            return 1.0
+
+    def semis(self):
+        try:
+            return int(float(self.pv["semis"].get()))
+        except ValueError:
+            return 0
+
+    def suggest(self):
+        i, r = self.cur()
+        if r is not None:
+            self.pv["semis"].set(str(RU.suggest_transpose(r["notes"])))
+
+    # -- playback ----------------------------------------------------------------
+    def clip(self):
+        """The A–B section with LEAD s before it, stretched + transposed, and the
+        run's notes on the clip clock."""
+        a, b = self.ab()
+        sp, st = self.speed(), self.semis()
+        a0 = max(0.0, a - LEAD)
+        au = self.rec["audio"][int(a0 * E.SR):int((b + 0.25) * E.SR)]
+        y = RU.stretch(au, sp, st)
+        notes = [((n0 - a0) / sp, (n1 - a0) / sp, n[2] + st) for n in self.rec["notes"]
+                 for n0, n1 in [(n[0], n[1])] if n0 >= a - 1e-6 and n1 <= b + 1e-6]
+        return y * 0.9, notes, sp, st
+
+    def ensure_mixer(self):
+        if self.mixer is None:
+            self.mixer = Mixer(enabled=not self.app.autotest)
+        return self.mixer
+
+    def listen(self):
+        if not self.rec or self.app.eng:
+            return
+        try:
+            y, notes, sp, st = self.clip()
+        except ValueError:
+            return
+        except Exception as ex:
+            messagebox.showerror("PitchTrainer", str(ex)[:500])
+            return
+        self.stop()
+        self.ensure_mixer().play(y)
+        if self.loop_v.get():
+            self.loop_job = self.app.root.after(int(len(y) / E.SR * 1000) + 400, self.listen)
+
+    def oud_slow(self):
+        i, r = self.cur()
+        if r is None or self.app.eng:
+            return
+        st = self.semis()
+        d = 0.45
+        segs = [E.Seg(k * d, (k + 1) * d, n[2] + st) for k, n in enumerate(r["notes"])]
+        self.stop()
+        self.ensure_mixer().play(oud.render_step(E.Step(0, 0, segs)))
+
+    def stop(self):
+        if self.loop_job:
+            self.app.root.after_cancel(self.loop_job)
+            self.loop_job = None
+        if self.mixer is not None:
+            self.mixer.stop()
+            self.mixer = None
+        if self.app.eng:
+            self.app.stop()
+
+    # -- sing back ---------------------------------------------------------------
+    def plan_for(self, clip, notes, how, mode="runs", info=None):
+        segs = [E.Seg(n0, n1, min(m, float(E.TOP_LIMIT)), label="run", scored=m <= E.TOP_LIMIT + 0.15) for n0, n1, m in notes]
+        dur = len(clip) / E.SR
+        if how == "after":
+            st = E.Step(0, segs[0].m0, segs, listen=True, listen_len=dur)
+            st.dur = max(segs[-1].t1 + 1.2, dur)
+            st.listen_len = dur
+        else:
+            st = E.Step(0, segs[0].m0, segs, listen=False)
+            st.dur = dur + 0.8
+        st.clip = clip
+        E.layout([st], lead=0.8, gap=0.3, tail=0.5)
+        st.sing1 = st.sing0 + st.dur
+        p = E.Plan(mode, [st], info or {})
+        p.end = st.sing1 + 1.0
+        return p
+
+    def sing(self, how, sim=None):
+        i, r = self.cur()
+        if r is None or self.app.eng:
+            return
+        try:
+            y, notes, sp, st = self.clip()
+        except ValueError:
+            return
+        if not notes:
+            return
+        if max(n[2] for n in notes) > E.TOP_LIMIT + 0.15:
+            messagebox.showwarning("PitchTrainer", "فيه نوتات فوق G4 — نزّل الطبقة (اقترح)")
+            return
+        self.stop()
+        name = r["name"] or "%s %s" % (os.path.basename(self.rec["path"]), G.fmt_t(r["t0"]))
+        info = {"name": name, "key": "%s@%.2f" % (os.path.basename(self.rec["path"]), r["t0"]), "speed": round(sp, 2),
+                "semis": st, "rate": r["rate"], "how": how}
+        self.app.start(sim=sim, plan=self.plan_for(y, notes, how, "runs", info))
+        self.result = None
+
+    def drill(self, sim=None):
+        if self.app.eng:
+            return
+        key = "%s/%s/%s" % (self.dv["maq"].get(), self.dv["kind"].get(), self.dv["start"].get())
+        nps = self.app.cfg.get("drill_nps", {}).get(key, 3.0)
+        try:
+            notes = RU.drill_notes(self.dv["maq"].get(), self.dv["kind"].get(), E.parse_note(self.dv["start"].get()), nps)
+        except E.PlanError as ex:
+            messagebox.showwarning("PitchTrainer", "القرار عالي على التمرين ده — أعلى قرار: %s" % str(ex).split("|")[1])
+            return
+        segs = [E.Seg(a, b, m) for a, b, m in notes]
+        y = oud.render_step(E.Step(0, 0, segs))
+        name = "%s · %s" % (E.MAQAMAT[self.dv["maq"].get()]["ar"], dict(RU.DRILLS)[self.dv["kind"].get()])
+        self.app.cfg.update(drill_maq=self.dv["maq"].get(), drill_kind=self.dv["kind"].get(), drill_start=self.dv["start"].get())
+        self.stop()
+        self.app.start(sim=sim, plan=self.plan_for(y, notes, "after", "drill", {"name": name, "key": key, "nps": nps, "speed": 1.0, "semis": 0}))
+
+    def show_drill(self):
+        key = "%s/%s/%s" % (self.dv["maq"].get(), self.dv["kind"].get(), self.dv["start"].get())
+        nps = self.app.cfg.get("drill_nps", {}).get(key, 3.0)
+        best = best_speed(E.load_history(), key)
+        self.drill_lb.configure(text="السرعة دلوقتي %.1f نوتة/ث%s" % (nps, ("  ·  أحسن %.1f" % best) if best else ""))
+
+    def finished(self, sess, dur):
+        st = sess.steps[0]
+        ref = [(st.sing0 + g.t0, st.sing0 + g.t1, g.m0) for g in st.segs if g.scored]
+        T = np.array(sess.T) - sess.lat
+        res = RU.score_sung(ref, T, np.array(sess.M), slack=1.2 + 0.5 * (ref[-1][1] - ref[0][0]))
+        self.result = (sess, res, ref)
+        info = sess.info
+        nps = (info.get("nps") or info.get("rate", 0) * info.get("speed", 1.0))
+        e = {"date": datetime.date.today().strftime("%Y-%m-%d"), "time": datetime.datetime.now().strftime("%H:%M"),
+             "mode": sess.mode, "duration_s": round(dur, 1), "lat_ms": round(sess.lat * 1000), "blind": self.app.blind}
+        e.update({k: info.get(k) for k in ("name", "key", "speed", "semis", "how")})
+        e.update(nps=round(nps, 2), n=len(res["notes"]), hits=res["hits"], close=res["close"], missed=res["missed"],
+                 late=res["late"], tempo_ratio=res["tempo_ratio"], tempo_score=res["tempo_score"], pitch_score=res["pitch_score"],
+                 score=res["score"])
+        E.save_session(e)
+        if sess.mode == "drill" and res["score"] >= 80:
+            d = self.app.cfg.setdefault("drill_nps", {})
+            d[info["key"]] = round(info["nps"] * 1.05, 2)
+            self.app.save_cfg()
+            self.msg.configure(text="برافو — المرة الجاية أسرع 5%%: %.2f نوتة/ث" % d[info["key"]])
+        else:
+            self.msg.configure(text="اتحفظت في السجل")
+        self.show_drill()
+        self.show_result(res, e)
+        self.draw()
+        if self.app.autotest:
+            self.app.auto_results.append(dict(e, truth=getattr(self, "truth", None)))
+            self.app.shot("%02d-%s-result" % (len(self.app.auto_results), sess.mode))
+            if self.auto_then:
+                self.app.root.after(1200, self.auto_then)
+
+    def show_result(self, res, e):
+        n = max(1, len(res["notes"]))
+        vals = ["%d" % res["hits"], "%d" % res["close"], "%d" % res["missed"], "%d" % res["late"],
+                "—" if res["tempo_ratio"] is None else "%.0f%%" % (100 * res["tempo_ratio"]), "%.0f%%" % res["score"]]
+        best = best_speed(E.load_history(), e.get("key"))
+        vals.append("—" if not best else "%.1f n/s" % best)
+        cols = [ZONE["green"], ZONE["yellow"], ZONE["red"], TEXT, TEXT, ZONE["green"] if res["score"] >= 80 else TEXT, GOLD]
+        for v, t, c in zip(self.slots, vals, cols):
+            v.configure(text=t, foreground=c)
+
+    def show_best(self):
+        i, r = self.cur()
+        if r is None:
+            return
+        best = best_speed(E.load_history(), "%s@%.2f" % (os.path.basename(self.rec["path"]), r["t0"]))
+        for v in self.slots:
+            v.configure(text="—", foreground=TEXT)
+        self.slots[-1].configure(text="—" if not best else "%.1f n/s" % best, foreground=GOLD)
+
+    # -- drawing -------------------------------------------------------------------
+    def live(self):
+        a = self.app
+        s = a.session
+        with a.eng.lock:
+            frames = list(s.frames[-3000:])
+            now = s.now_a
+        ph, st = s.phase_at(now)
+        a.phase_lb.configure(text={"lead": "استعد…", "listen": "اسمع  ♪", "gap": "جهّز نفسك…", "sing": "دورك  ●"}.get(ph, ""))
+        self.msg.configure(text={"listen": "اسمع ♪", "sing": "دورك ●", "gap": "جهّز نفسك…"}.get(ph, "…"))
+        self.draw(frames=None if a.blind else frames, now=now)
+
+    def draw(self, frames=None, now=None):
+        cv = self.cv
+        cv.delete("all")
+        W, H = max(cv.winfo_width(), 200), max(cv.winfo_height(), 120)
+        L = 46
+        if self.app.eng is not None and self.app.session and self.app.session.mode in ("runs", "drill"):
+            st = self.app.session.steps[0]
+            ref = [(st.sing0 + g.t0, st.sing0 + g.t1, g.m0) for g in st.segs]
+            t_a, t_b = st.sing0 - 0.3, st.sing0 + st.dur
+            if self.app.blind:
+                cv.create_text(W / 2, H / 2, text="وضع أعمى — الرسم في الآخر", fill=GOLD, font=("Segoe UI", 15, "bold"))
+                return
+        elif self.result:
+            sess, res, ref = self.result
+            t_a, t_b = ref[0][0] - 0.4, ref[-1][1] + 0.8
+            frames = sess.frames
+        else:
+            i, r = self.cur()
+            if r is None or not self.rec:
+                return
+            ref = r["notes"]
+            t_a, t_b = r["t0"] - 0.4, r["t1"] + 0.4
+            T, M = self.rec["T"], self.rec["M"]
+            sel = (T >= t_a) & (T <= t_b)
+            frames = [(t, None if np.isnan(m) else m, None, None, "ref", 0) for t, m in zip(T[sel], M[sel])]
+        ms = [m for _, _, m in ref] + [f[1] for f in (frames or []) if f[1] is not None and t_a <= f[0] <= t_b]
+        lo, hi = min(ms) - 1.5, max(ms) + 1.5
+        if hi - lo < 7:
+            c = (hi + lo) / 2
+            lo, hi = c - 3.5, c + 3.5
+        X = lambda t: L + (t - t_a) / (t_b - t_a) * (W - L - 6)
+        Y = lambda m: H - 8 - (m - lo) / (hi - lo) * (H - 16)
+        for n in range(int(np.floor(lo)), int(np.ceil(hi)) + 1):
+            cv.create_line(L, Y(n), W, Y(n), fill="#1d1a16")
+            cv.create_text(L - 4, Y(n), text=E.note_name(n), anchor="e", fill="#5d544a", font=("Segoe UI", 8))
+        if lo < E.TOP_LIMIT + 0.5 < hi + 1:
+            cv.create_line(L, Y(E.TOP_LIMIT + 0.5), W, Y(E.TOP_LIMIT + 0.5), fill="#7a2e2a", dash=(4, 4))
+        zones = {}
+        if self.result:
+            zones = {k: r["zone"] for k, r in enumerate(self.result[1]["notes"])}
+        zc = {"hit": ZONE["green"], "close": ZONE["yellow"], "missed": ZONE["red"]}
+        for k, (a, b, m) in enumerate(ref):
+            col = zc.get(zones.get(k), GOLD)
+            cv.create_line(X(a), Y(m), X(b), Y(m), fill=col, width=4)
+        if frames:
+            run = []
+            ref_line = frames and frames[0][4] == "ref"
+            for f in frames:
+                if f[1] is None or not (t_a <= f[0] <= t_b):
+                    if len(run) >= 4:
+                        cv.create_line(*run, fill="#8a6a3c" if ref_line else "#7fd1ff", width=2)
+                    run = []
+                    continue
+                run += [X(f[0]), Y(f[1])]
+            if len(run) >= 4:
+                cv.create_line(*run, fill="#8a6a3c" if ref_line else "#7fd1ff", width=2)
+        if now is not None:
+            cv.create_line(X(now), 4, X(now), H - 4, fill="#3a3128")
+
+    # -- CI ------------------------------------------------------------------------
+    def autotest(self, sim, then):
+        """CI: a synthetic 'mawwal' with a known run → detect, practise at 75% −2
+        semitones, sing after it, then one drill; screenshots on the way."""
+        a = self.app
+        a.nb.select(1)
+        folder = os.path.join(a.shots, "عُرَب تجربة")
+        path, truth = make_test_recording(folder)
+        self.truth = truth
+        self.auto_then = None
+
+        def loaded():
+            self.tree.selection_set("0")
+            self.select()
+            a.root.after(900, lambda: a.shot("08-runs-list"))
+            self.pv["speed"].set("75")
+            self.pv["semis"].set("-2")
+            self.auto_then = after_run
+            a.root.after(1500, lambda: self.sing("after", sim=sim))
+            a.root.after(5200, lambda: a.shot("09-runs-singing"))
+
+        def after_run():
+            self.dv["maq"].set("Hijaz")
+            self.dv["kind"].set("turn4")
+            self.dv["start"].set("D3")
+            self.dcb["maq"].current(self.dcb["maq"].keys.index("Hijaz"))
+            self.dcb["kind"].current(self.dcb["kind"].keys.index("turn4"))
+            self.dcb["start"].current(self.dcb["start"].keys.index("D3"))
+            self.auto_then = done
+            self.drill(sim=sim)
+
+        def done():
+            self.auto_then = None
+            a.auto_runs = {"runs": [{"t0": r["t0"], "t1": r["t1"], "n": len(r["notes"]), "rate": r["rate"],
+                                     "notes": [round(n[2], 2) for n in r["notes"]]} for r in self.runs],
+                           "maqam": self.rec["maqam"], "rubberband": RU.has_rubberband(),
+                           "drill_nps": a.cfg.get("drill_nps", {})}
+            then()
+        a.b["blind"].set(False)
+        self.rate.set(4.0)
+        self.load(path, then=loaded)
+
+
+def best_speed(history, key):
+    v = [e["nps"] for e in history if e.get("key") == key and e.get("mode") in ("runs", "drill") and (e.get("score") or 0) >= 80]
+    return max(v) if v else None
+
+
+TEST_RUN = [0, 1, 2, 3, 4, 3, 2, 1, 0, 1, 2]      # Ajam degrees, 7 notes/s
+
+
+def make_test_recording(folder):
+    """CI/self-test: a short 'mawwal' (held notes, then a 7 n/s Ajam run on E3,
+    then a held tonic) over a keyboard pad — as MP3 through ffmpeg."""
+    os.makedirs(folder, exist_ok=True)
+    tonic, up = 52.0, E.MAQAMAT["Ajam"]["up"]
+    seq = [(0.6, 1.8, tonic), (1.8, 2.8, tonic + 4)]
+    t = 2.8
+    run = []
+    for d in TEST_RUN:
+        run.append((t, t + 1 / 7.0, tonic + up[d] / 100.0))
+        t += 1 / 7.0
+    seq += run + [(t, t + 1.6, tonic)]
+    y = RU.synth_run(seq, seed=3, vib=6)
+    pad = np.zeros(len(y))
+    tt = np.arange(len(y)) / E.SR
+    for m in (40.0, 47.0, 52.0):
+        f = E.midi_to_hz(m)
+        pad += 0.04 * np.sin(2 * np.pi * f * tt) * (1 + 0.4 * np.sin(2 * np.pi * 2 * f * tt))
+    wav = os.path.join(folder, "موال تجربة.wav")
+    G.write_wav(wav, np.stack([y + pad, y + pad], 1))
+    mp3 = os.path.join(folder, "موال تجربة.mp3")
+    ff = G.ffmpeg_path()
+    if ff:
+        kw = {"creationflags": 0x08000000} if sys.platform == "win32" else {}
+        subprocess.run([ff, "-y", "-v", "error", "-i", wav, "-b:a", "192k", mp3], stdin=subprocess.DEVNULL, **kw)
+    return (mp3 if os.path.isfile(mp3) else wav), run
 
 
 def main():

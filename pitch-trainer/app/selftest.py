@@ -370,6 +370,108 @@ def main():
     ok(os.path.isfile(rp) and rp.endswith("2026-11-02 - تقرير الصوت.md"), "report file: " + os.path.basename(rp))
     ok(report.day_kind(datetime.date(2026, 11, 5)) == "تسخين خفيف", "Thursday = light warm-up")
 
+    print("— «العُرَب»: synthetic runs with known notes and speed")
+    import runs as RU
+    rng = np.random.default_rng(9)
+    found = noted = total = 0
+    rate_err, pitch_err = [], []
+    for trial in range(12):
+        mq = RU.DRILL_MAQAMAT[trial % len(RU.DRILL_MAQAMAT)]
+        tonic = E.tonic_of(mq, 50.0)
+        nps = [4.5, 6.0, 8.0, 10.0][trial % 4]
+        degs = [1]
+        for _ in range(int(rng.integers(5, 12))):     # a walk with no repeated pitch
+            mv = int(rng.choice([-1, 1, 1, 2, -2]))
+            nxt = degs[-1] + mv if -2 <= degs[-1] + mv <= 7 else degs[-1] - mv
+            degs.append(nxt)
+        if degs[-1] == -2:
+            degs.append(-1)
+        seq, t = [(0.4, 1.6, tonic + RU.degree_cents(mq, -2) / 100.0)], 1.6
+        run = []
+        for dgi in degs:
+            m = tonic + RU.degree_cents(mq, dgi) / 100.0
+            run.append((t, t + 1 / nps, m))
+            t += 1 / nps
+        seq += run + [(t, t + 1.4, tonic + RU.degree_cents(mq, -2) / 100.0)]
+        y = RU.synth_run(seq, vib=5, seed=trial)
+        pad = 0.04 * np.sin(2 * np.pi * E.midi_to_hz(tonic - 12) * np.arange(len(y)) / SR)    # quiet bass drone underneath
+        T, M, cf = RU.melody(y + pad)
+        rs = RU.find_runs(RU.fast_notes(T, M), 4.0)
+        hit = [r for r in rs if r["t0"] < run[0][0] + 0.1 and r["t1"] > run[-1][1] - 0.1]
+        total += len(run)
+        if hit:
+            found += 1
+            r = hit[0]
+            rate_err.append(abs(r["rate"] - len(r["notes"]) / (r["notes"][-1][1] - r["notes"][0][0])))
+            got = [n[2] for n in r["notes"]]
+            # repeated pitches merge into one note: compare against the de-duplicated truth
+            want = [x[2] for x in run]
+            if len(got) == len(want):
+                noted += len(want)
+                pitch_err += [abs(g - w) * 100 for g, w in zip(got, want)]
+    pitch_err = np.array(pitch_err)
+    acc.append(("runs: notes of 12 synthetic runs (4.5–10 n/s, 8 maqamat, quarter tones)", len(pitch_err),
+                float(pitch_err.mean()), float(pitch_err.max()), len(pitch_err)))
+    ok(found >= 11 and len(pitch_err) >= 0.9 * total and pitch_err.max() < 15,
+       "runs found %d/12; notes extracted %d, pitch error avg %.2fc max %.2fc" % (found, len(pitch_err), pitch_err.mean(), pitch_err.max()))
+    stem, truth_run = None, None
+    import importlib
+    seq = [(0.4, 1.4, 52.0)] + [(1.4 + k / 7.0, 1.4 + (k + 1) / 7.0, 52.0 + E.MAQAMAT["Ajam"]["up"][dg] / 100.0)
+                                for k, dg in enumerate([0, 1, 2, 3, 4, 3, 2, 1, 0])]
+    y = RU.synth_run(seq + [(seq[-1][1], seq[-1][1] + 1.2, 52.0)], seed=4)
+    g = RU.guess_maqam(RU.fast_notes(*RU.melody(y)[:2]))
+    ok(g["maqam"] == "Ajam" and round(g["tonic"]) % 12 == 4, "maqam guess on an Ajam line on E: %s" % RU.maqam_label(g))
+    clip = np.stack([y, y], 1)
+    T0, M0, _ = RU.melody(y)
+    n0 = [n for n in RU.fast_notes(T0, M0)]
+    for sp, st_ in ((0.5, 0), (0.75, -2)):
+        z = RU.stretch(clip, sp, st_)
+        T1, M1, _ = RU.melody(z.mean(1))
+        n1 = RU.fast_notes(T1, M1)
+        d = []
+        for a_ in n0:                                   # the same note at the stretched time
+            c = 0.5 * (a_[0] + a_[1]) / sp
+            hit_ = [b_ for b_ in n1 if b_[0] <= c <= b_[1]]
+            d.append(abs(hit_[0][2] - a_[2] - st_) * 100 if hit_ else 999.0)
+        ok(max(d) < 15 and np.median(d) < 3 and abs(len(z) / len(clip) - 1 / sp) < 0.02,
+           "stretch %d%% %+d st (%s): length x%.2f, %d notes, pitch kept: median %.1fc, max %.1fc" %
+           (sp * 100, st_, "rubberband" if RU.has_rubberband() else "atempo", len(z) / len(clip), len(n1), np.median(d), max(d)))
+    ok(RU.suggest_transpose([(0, 0.1, 69.3), (0.1, 0.2, 66.0)]) == -3, "transpose suggestion: A4+30c -> -3 (under G4)")
+    # sing back: known errors, a skipped note, slower tempo
+    ref = [(1.0 + k * 0.15, 1.0 + (k + 1) * 0.15, 50.0 + d / 100.0) for k, d in enumerate([0, 150, 300, 500, 300, 150, 0, 150, 300])]
+    offs = [0, 10, -40, 0, 80, 0, -5, 0, 0]
+    sung = [(0.2 + 1.0 + k * 0.15 * 1.1, 0.2 + 1.0 + (k + 1) * 0.15 * 1.1, m) for k, (a, b, m) in enumerate(ref)]
+    skip = 6
+    sung_seq = [x for k, x in enumerate(sung) if k != skip]
+    off_seq = [o for k, o in enumerate(offs) if k != skip]
+    ys = RU.synth_run(sung_seq, seed=5, offset=off_seq)
+    pt = E.PitchTracker()
+    T, M = [], []
+    for i in range(0, len(ys), E.HOP):
+        for t, f, c_, db in pt.feed(ys[i:i + E.HOP]):
+            T.append(t)
+            M.append(E.hz_to_midi(f) if f else np.nan)
+    res = RU.score_sung(ref, np.array(T), np.array(M), slack=1.5)
+    zones = [r["zone"] for r in res["notes"]]
+    errs_ = [r["err"] for r in res["notes"]]
+    ok(zones[2] == "close" and zones[4] == "missed" and zones[1] == "hit" and zones[0] == "hit",
+       "DTW: +10c hit, -40c close, +80c missed (%s)" % " ".join(z[0] for z in zones))
+    ok(abs(errs_[2] + 40) < 6 and abs(errs_[1] - 10) < 6, "DTW note errors: %+.0fc / %+.0fc (true +10 / -40)" % (errs_[1], errs_[2]))
+    ok(zones[skip] != "hit", "skipped note flagged (%s)" % zones[skip])
+    ok(abs(res["tempo_ratio"] - 1.1) < 0.03, "tempo: sung 10%% slower, measured x%.2f (tempo score %.0f)" % (res["tempo_ratio"], res["tempo_score"]))
+    worst_d = 0.0
+    for mq in RU.DRILL_MAQAMAT:
+        for kind, _ in RU.DRILLS:
+            for start in range(43, 60):
+                try:
+                    nts = RU.drill_notes(mq, kind, start, 3.0)
+                except E.PlanError:
+                    continue
+                worst_d = max(worst_d, max(n[2] for n in nts))
+    ok(worst_d <= 67 + 1e-9, "drills (8 maqamat x 5 shapes x tonics G2..B3): highest %s" % E.note_label(worst_d))
+    sk = RU.drill_notes("Sikah", "turn3", 52, 3.0)
+    ok(abs(sk[0][2] - 51.5) < 1e-9 and any(abs((n[2] * 100) % 100 - 50) < 1e-6 for n in sk), "Sikah drill keeps its quarter tones")
+
     print("")
     print("Scoring accuracy (measured vs true note error):")
     for name, n, mean, mx, cls in acc:

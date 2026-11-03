@@ -187,6 +187,8 @@ MAQAMAT = {
     "Nahawand": {"ar": "نهاوند", "up": [0, 200, 300, 500, 700, 800, 1100, 1200],
                  "down": [1200, 1000, 800, 700, 500, 300, 200, 0]},
     "Sikah":    {"ar": "سيكاه",  "up": [0, 150, 350, 550, 700, 850, 1050, 1200], "offset": -50},
+    "Ajam":     {"ar": "عجم",    "up": [0, 200, 400, 500, 700, 900, 1100, 1200]},
+    "Kurd":     {"ar": "كرد",    "up": [0, 100, 300, 500, 700, 800, 1000, 1200]},
 }
 AJNAS = {
     "Bayati": {"ar": "بياتي", "cents": [0, 150, 300, 500]},
@@ -708,11 +710,16 @@ def daily(history):
     """One row per day: note-based exact/close/avg (falls back to the old
     time-based numbers for sessions saved before v2), best high/low, minutes,
     and per exercise group."""
-    days = {}
+    days, runs = {}, {}
     for e in history:
+        if e.get("mode") in ("runs", "drill"):
+            runs.setdefault(e["date"], []).append(e)
+            continue
         if not e.get("frames") and not e.get("notes"):
             continue
         days.setdefault(e["date"], []).append(e)
+    for k in runs:
+        days.setdefault(k, [])
     rows = []
     for k in sorted(days):
         es = days[k]
@@ -727,8 +734,13 @@ def daily(history):
             w = sum(e["frames"] for e in es if e.get("avg_cents") is not None)
             row.update(notes=0, exact_pct=None, close_pct=None,
                        avg_cents=round(sum(e["avg_cents"] * e["frames"] for e in es if e.get("avg_cents") is not None) / w, 1) if w else None)
-        tw = sum(e.get("frames", 0) for e in es if e.get("in_tune_pct") is not None)
+        tw = sum(e.get("frames", 0) for e in es if e.get("in_tune_pct") is not None and e.get("frames"))
         row["in_tune_pct"] = round(sum(e["in_tune_pct"] * e["frames"] for e in es if e.get("in_tune_pct") is not None) / tw, 1) if tw else None
+        good = [e["nps"] for e in runs.get(k, []) if (e.get("score") or 0) >= 80]
+        row["run_nps"] = max(good) if good else None          # fastest run/drill sung at ≥ 80%
+        row["runs"] = len(runs.get(k, []))
+        row["sessions"] += row["runs"]
+        row["minutes"] = round(row["minutes"] + sum(e.get("duration_s", 0) for e in runs.get(k, [])) / 60.0, 1)
         row["groups"] = {}
         for g, _ in GROUPS:
             ga = _agg([e for e in es if group_of(e.get("mode", "basic")) == g])

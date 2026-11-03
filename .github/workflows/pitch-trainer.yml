@@ -115,7 +115,7 @@ jobs:
             if ($v.jitter -lt 0.3 -or $v.jitter -gt 0.9 -or $v.hnr -lt 15 -or $v.mpt -lt 8 -or $v.mpt -gt 10 -or $v.wav.Count -ne 3) { $fail += "voice check $($v.kind)" }
             foreach ($w in $v.wav) { if (-not (Test-Path $w)) { $fail += "voice WAV missing" } }
           }
-          foreach ($s in ($r.sessions | Where-Object { $_.mode -notin @("runs", "drill", "hold", "sss", "phrase") })) {
+          foreach ($s in ($r.sessions | Where-Object { $_.mode -notin @("runs", "drill", "hold", "sss", "phrase", "vcheck") })) {
             if ($s.max_target -gt 67.0001) { $fail += "$($s.mode): target above G4" }
             if ($s.notes -lt 2) { $fail += "$($s.mode): no notes scored" }
             if ($s.truth_n -gt 0 -and $s.truth_mae -gt 2) { $fail += "$($s.mode): scoring off by $($s.truth_mae)c" }

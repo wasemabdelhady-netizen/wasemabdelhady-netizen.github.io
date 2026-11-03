@@ -37,7 +37,8 @@ class Part:
 
 
 def item_dur(i):
-    return {"notes": lambda: i[1][-1][1], "glide": lambda: i[3], "rest": lambda: i[1]}[i[0]]()
+    return {"notes": lambda: i[1][-1][1], "glide": lambda: i[3], "rest": lambda: i[1],
+            "breath": lambda: i[1] + i[2]}[i[0]]()
 
 
 def notes(rel, root, d, last=2.0):
@@ -105,6 +106,60 @@ def routine(start=43, top=62, length="normal"):
     return parts
 
 
+def cooldown(start=43, top=62):
+    """«تهدئة» after singing, ~3.5 min, everything at least 3 semitones under the
+    warm-up's top: descending hums, a light descending lip trill, small falling
+    sirens, a low hum, then slow guided breathing (in 4, out 6)."""
+    top = min(top, E.TOP_LIMIT) - 3
+    start = min(start, top - 7)          # a narrow range: start lower so everything fits under the cap
+    parts = []
+    down = [7, 5, 4, 2, 0]
+    items = []
+    for r in range(min(start + 7, top - 7), start - 1, -1):
+        items += [("notes", notes(down, float(r), 0.7, last=2.5)), ("rest", 4.0)]
+        if len(items) >= 12:
+            break
+    parts.append(Part("hum_down", "همهمة نازلة", "همهمة مريحة نازلة 5-4-3-2-1 — صوت واطي وخفيف، كأنك بتتنهّد.", items))
+    hi = float(min(start + 10, top))
+    items = []
+    for _ in range(4):
+        items += [("glide", hi, float(start), 4.0), ("rest", 3.5)]
+    parts.append(Part("trill_down", "«برررر» خفيف نازل", "lip trill خفيف من فوق لتحت بس — نَفَس قليل ومن غير أي ضغط.", items))
+    items = []
+    for k in range(5):
+        a = float(min(start + 7 - k, top))
+        items += [("glide", a, a - 5, 2.5), ("rest", 3.0)]
+    parts.append(Part("siren_small", "سايرن صغير نازل", "«أوو» نازل خامسة صغيرة، كل مرة أوطى شوية.", items))
+    items = []
+    for _ in range(4):
+        items += [("notes", [(0.0, 6.0, float(min(start + 2, top)))]), ("rest", 3.5)]
+    parts.append(Part("hum_low", "همهمة على نوتة واطية", "همهمة على نوتة واطية مريحة — حس الصوت بيستقر في صدرك.", items))
+    items = [("breath", 4.0, 6.0) for _ in range(6)]
+    parts.append(Part("breathe", "تنفّس بطيء: شهيق 4، زفير 6", "اتبع الصوت: نغمة طالعة = شهيق 4 عدّات، نغمة نازلة = زفير 6 عدّات من البُق.", items))
+    for p in parts:
+        for i in p.items:
+            if i[0] == "notes":
+                assert max(n[2] for n in i[1]) <= top + 1e-9
+            if i[0] == "glide":
+                assert max(i[1], i[2]) <= top + 1e-9
+    return parts
+
+
+def breath_cue(inh, exh, sr=E.SR):
+    """Very soft guide for slow breathing: a quiet rising hum while breathing in,
+    a falling one while breathing out, and a tick on every count."""
+    n1, n2 = int(inh * sr), int(exh * sr)
+    t1, t2 = np.arange(n1) / sr, np.arange(n2) / sr
+    up = np.sin(2 * np.pi * np.cumsum(np.linspace(150, 220, n1)) / sr) * 0.04 * np.sin(np.pi * t1 / inh)
+    dn = np.sin(2 * np.pi * np.cumsum(np.linspace(220, 140, n2)) / sr) * 0.04 * np.sin(np.pi * t2 / exh)
+    y = np.concatenate((up, dn)).astype(np.float32)
+    for k in range(int(inh + exh)):
+        c = clap(seed=k) * 0.35
+        a = int(k * sr)
+        y[a:a + len(c)] += c[:len(y) - a]
+    return y
+
+
 def clap(sr=E.SR, seed=0):
     rng = np.random.default_rng(seed)
     n = int(0.06 * sr)
@@ -132,6 +187,8 @@ def render(parts, kind="oud", sr=E.SR):
                 z = oud.render_step(E.Step(0, 0, segs), kind=kind)
             elif i[0] == "glide":
                 z = oud.glide_tone(i[1], i[2], i[3], sr).astype(np.float32)
+            elif i[0] == "breath":
+                z = breath_cue(i[1], i[2], sr)
             else:
                 z = np.zeros(0, np.float32)
             y[a:a + len(z)] += z[:len(y) - a]
@@ -140,13 +197,15 @@ def render(parts, kind="oud", sr=E.SR):
     return np.clip(y, -0.95, 0.95), marks
 
 
-def export_mp3(parts, kind="oud", length="normal", folder=None, when=None):
+def export_mp3(parts, kind="oud", length="normal", folder=None, when=None, cool=False):
     folder = folder or out_dir()
     os.makedirs(folder, exist_ok=True)
     when = when or datetime.datetime.now()
     y, _ = render(parts, kind)
     mins = int(round(len(y) / E.SR / 60.0))
     name = "%s - تسخين %s %d دقايق.mp3" % (when.strftime("%Y-%m-%d"), "قصير" if length == "short" else "عادي", mins)
+    if cool:
+        name = "%s - تهدئة %d دقايق.mp3" % (when.strftime("%Y-%m-%d"), mins)
     path = os.path.join(folder, name)
     ff = G.ffmpeg_path()
     if not ff:

@@ -38,6 +38,7 @@ try:
     import runs as RU
     import breath as BR
     import warmup as WU
+    import voicecheck as VC
 except Exception:
     crash_log(traceback.format_exc())
     raise
@@ -462,7 +463,8 @@ class App:
         self.runs_tab = RunsTab(self)
         self.breath_tab = BreathTab(self)
         self.warm_tab = WarmupTab(self)
-        self.nb.select(0 if autotest else min(int(self.cfg.get("tab", 0)), 3))
+        self.voice_tab = VoiceTab(self)
+        self.nb.select(0 if autotest else min(int(self.cfg.get("tab", 0)), 4))
         root.protocol("WM_DELETE_WINDOW", self.quit)
         root.after(40, self.tick)
         if autotest:
@@ -556,7 +558,11 @@ class App:
         if bt:
             d.update(hold_note=bt.note_v.get(), sss_pattern=bt.pat_v.get(), sss_rounds=bt.rounds_v.get())
         if wt:
-            d.update(warm_start=wt.wv["start"].get(), warm_top=wt.wv["top"].get(), warm_len=wt.wv["len"].get(), warm_ref=wt.wv["ref"].get())
+            d.update(warm_start=wt.wv["start"].get(), warm_top=wt.wv["top"].get(), warm_len=wt.wv["len"].get(), warm_ref=wt.wv["ref"].get(),
+                     warm_kind=wt.wv["kind"].get())
+        vt = getattr(self, "voice_tab", None)
+        if vt:
+            d.update(vc_kind=vt.kind_v.get(), vc_note=vt.note_v.get())
         if hasattr(self, "nb"):
             try:
                 d["tab"] = self.nb.index(self.nb.select())
@@ -663,7 +669,7 @@ class App:
         if self.b["rec"].get() and plan.mode != "calib":
             self.wav = E.recording_path("%s %s" % (plan.mode, self.v["start"].get()))
             rec = E.WavRecorder(self.wav)
-        self.blind = self.b["blind"].get() and plan.mode not in ("calib", "free", "hold", "sss", "phrase")
+        self.blind = self.b["blind"].get() and plan.mode not in ("calib", "free", "hold", "sss", "phrase", "vc1", "vc2", "vc3")
         self.eng = Engine(self.session, source, mixer, self.v["ref"].get(), rec)
         self.t0 = time.time()
         self.ended = False
@@ -730,6 +736,10 @@ class App:
         if sess.mode in ("hold", "sss", "phrase"):
             self.sync()
             self.breath_tab.finished(sess, dur)
+            return
+        if sess.mode in ("vc1", "vc2", "vc3"):
+            self.sync()
+            self.voice_tab.finished(sess, dur)
             return
         e = S.history_entry(sess, dur, wav=self.wav, blind=self.blind)
         self.last = e
@@ -892,6 +902,8 @@ class App:
                     self.runs_tab.live()
                 elif self.session.mode in ("hold", "sss", "phrase"):
                     self.breath_tab.live()
+                elif self.session.mode in ("vc1", "vc2", "vc3"):
+                    self.voice_tab.live()
                 else:
                     self.update_live()
         except Exception:
@@ -1221,7 +1233,7 @@ class App:
         if i == len(plans) and not getattr(self, "runs_done", False):
             self.runs_done = True
             self.auto_i -= 1
-            self.runs_tab.autotest(self.sim_for("runs", 20), lambda: self.breath_tab.autotest(self.auto_next))
+            self.runs_tab.autotest(self.sim_for("runs", 20), lambda: self.breath_tab.autotest(lambda: self.voice_tab.autotest(self.auto_next)))
             return
         if i >= len(plans) and not getattr(self, "warm_done", False):
             self.warm_done = True
@@ -1236,7 +1248,12 @@ class App:
             def exp():
                 wt.stop()
                 self.warm_mp3 = wt.export()
-                self.root.after(500, self.auto_next)
+                wt.wv["kind"].set("cool")
+                wt.cbs["kind"].current(1)
+                wt.fill()
+                self.cool_mp3 = wt.export()
+                self.root.after(500, lambda: self.shot("15-cooldown"))
+                self.root.after(1500, self.auto_next)
             self.root.after(11000, exp)
             return
         if i >= len(plans):
@@ -1295,7 +1312,7 @@ class App:
     def auto_write(self):
         rp = self.day_report()
         out = {"sessions": self.auto_results, "calib": self.calib, "report": rp, "runs": getattr(self, "auto_runs", None),
-               "warm_mp3": getattr(self, "warm_mp3", None),
+               "warm_mp3": getattr(self, "warm_mp3", None), "cool_mp3": getattr(self, "cool_mp3", None),
                "history_days": E.daily(E.load_history()), "history_file": E.HISTORY_FILE,
                "sim_lat": self.autotest["sim_lat"]}
         with open(self.autotest["out"], "w", encoding="utf-8") as fh:
@@ -2177,14 +2194,16 @@ class WarmupTab:
         top = ttk.Frame(f)
         top.grid(row=0, column=0, sticky="e")
         self.wv = {"start": tk.StringVar(value=cfg.get("warm_start", "G2")), "top": tk.StringVar(value=cfg.get("warm_top", "D4")),
-                   "len": tk.StringVar(value=cfg.get("warm_len", "normal")), "ref": tk.StringVar(value=cfg.get("warm_ref", "oud"))}
+                   "len": tk.StringVar(value=cfg.get("warm_len", "normal")), "ref": tk.StringVar(value=cfg.get("warm_ref", "oud")),
+                   "kind": tk.StringVar(value=cfg.get("warm_kind", "warm"))}
         self.cbs = {}
-        for k, lab, pairs in (("start", "القرار", [(n, n) for n in E.note_choices(40, 55)]),
+        for k, lab, pairs in (("kind", "الروتين", [("warm", "تسخين (قبل الغنا)"), ("cool", "تهدئة (بعد اللايف)")]),
+                              ("start", "القرار", [(n, n) for n in E.note_choices(40, 55)]),
                               ("top", "أعلى نوتة", [(n, n) for n in E.note_choices(55, E.TOP_LIMIT)]),
                               ("len", "الطول", [("short", "قصير (4 دقايق)"), ("normal", "عادي (7 دقايق)")]),
                               ("ref", "صوت المرجع", [("oud", "عود"), ("piano", "بيانو")])):
             ttk.Label(top, text=lab).pack(side="right", padx=(10, 4))
-            cb = ttk.Combobox(top, state="readonly", width=14 if k == "len" else 7, values=[t for _, t in pairs])
+            cb = ttk.Combobox(top, state="readonly", width=16 if k in ("len", "kind") else 7, values=[t for _, t in pairs])
             keys = [x for x, _ in pairs]
             cb.current(keys.index(self.wv[k].get()) if self.wv[k].get() in keys else 0)
             cb.bind("<<ComboboxSelected>>", lambda e, k=k, cb=cb, keys=keys: (self.wv[k].set(keys[cb.current()]), self.fill()))
@@ -2209,6 +2228,8 @@ class WarmupTab:
         self.fill()
 
     def parts(self):
+        if self.wv["kind"].get() == "cool":
+            return WU.cooldown(E.parse_note(self.wv["start"].get()), E.parse_note(self.wv["top"].get()))
         return WU.routine(E.parse_note(self.wv["start"].get()), E.parse_note(self.wv["top"].get()), self.wv["len"].get())
 
     def fill(self):
@@ -2217,7 +2238,10 @@ class WarmupTab:
         for i, p in enumerate(ps):
             self.tree.insert("", "end", iid=str(i), values=(p.name, "%d:%02d" % divmod(int(round(p.dur())), 60), p.how))
         tot = sum(p.dur() for p in ps)
-        self.msg.configure(text="الروتين كله %d:%02d — مفيش نوتة فوق %s" % (int(tot) // 60, int(tot) % 60, self.wv["top"].get()))
+        cool = self.wv["kind"].get() == "cool"
+        cap = E.note_name(min(E.parse_note(self.wv["top"].get()), E.TOP_LIMIT) - 3) if cool else self.wv["top"].get()
+        self.msg.configure(text="الروتين كله %d:%02d — مفيش نوتة فوق %s%s" % (int(tot) // 60, int(tot) % 60, cap,
+                                                                            "  (التهدئة أوطى من التسخين بـ 3 نص تون)" if cool else ""))
         self.draw(None)
 
     def play(self):
@@ -2276,13 +2300,247 @@ class WarmupTab:
         self.msg.configure(text="بعمل الملف…")
         self.app.root.update_idletasks()
         try:
-            p = WU.export_mp3(self.parts(), self.wv["ref"].get(), self.wv["len"].get())
+            p = WU.export_mp3(self.parts(), self.wv["ref"].get(), self.wv["len"].get(), cool=self.wv["kind"].get() == "cool")
         except Exception as ex:
             crash_log(traceback.format_exc())
             messagebox.showerror("PitchTrainer", str(ex)[:500])
             return None
         self.msg.configure(text="اتحفظ: " + p)
         return p
+
+
+# ------------------------------------------------------------- «صوتك النهارده» tab
+class VoiceTab:
+    def __init__(self, app):
+        self.app = app
+        a = app
+        f = ttk.Frame(a.nb, padding=10)
+        a.nb.add(f, text="  صوتك النهارده  ")
+        self.f = f
+        f.columnconfigure(0, weight=1)
+        f.rowconfigure(2, weight=1)
+        top = ttk.Frame(f)
+        top.grid(row=0, column=0, sticky="e")
+        self.kind_v = tk.StringVar(value=a.cfg.get("vc_kind", "pre"))
+        for k, t in reversed(VC.KINDS):
+            ttk.Radiobutton(top, text=t, value=k, variable=self.kind_v).pack(side="right", padx=6)
+        ttk.Label(top, text="نوع الفحص:").pack(side="right", padx=(10, 4))
+        self.note_v = tk.StringVar(value=a.cfg.get("vc_note") or a.cfg.get("hold_note") or "G3")
+        ttk.Combobox(top, textvariable=self.note_v, state="readonly", width=6, values=E.note_choices(43, E.TOP_LIMIT)).pack(side="right", padx=(20, 4))
+        ttk.Label(top, text="النوتة").pack(side="right")
+        ttk.Button(top, text="▶ ابدأ الفحص (30 ثانية)", style="Go.TButton", command=self.start).pack(side="left")
+        self.step_lb = ttk.Label(f, text="ثلاث خطوات: «آه» 5 ثواني · أطول نَفَس · سايرن. البس السماعات.", foreground=GOLD,
+                                 font=("Segoe UI", 12, "bold"))
+        self.step_lb.grid(row=1, column=0, sticky="e", pady=6)
+        mid = ttk.Frame(f)
+        mid.grid(row=2, column=0, sticky="nsew")
+        mid.columnconfigure(0, weight=1)
+        mid.columnconfigure(1, weight=1)
+        mid.rowconfigure(0, weight=1)
+        self.cv = tk.Canvas(mid, bg=PANEL, highlightthickness=0, width=420, height=230)
+        self.cv.grid(row=0, column=0, sticky="nsew", padx=(0, 6))
+        res = ttk.Frame(mid, style="Panel.TFrame", padding=8)
+        res.grid(row=0, column=1, sticky="nsew")
+        self.rows = {}
+        for r, (k, lab, unit, hb) in enumerate(VC.METRICS):
+            ttk.Label(res, text=lab, style="Cap.TLabel").grid(row=r, column=2, sticky="e", padx=4)
+            v = ttk.Label(res, text="—", style="Val.TLabel" if False else "Cap.TLabel", font=("Segoe UI", 13, "bold"))
+            v.grid(row=r, column=1, sticky="e", padx=6)
+            c = tk.Canvas(res, width=14, height=14, bg=PANEL, highlightthickness=0)
+            c.grid(row=r, column=0)
+            self.rows[k] = (v, c)
+        self.verdict_lb = ttk.Label(f, text="", font=("Segoe UI", 12, "bold"))
+        self.verdict_lb.grid(row=3, column=0, sticky="e", pady=(6, 0))
+        self.ba_lb = ttk.Label(f, text="", style="Hint.TLabel")
+        self.ba_lb.grid(row=4, column=0, sticky="e")
+        ttk.Label(f, text=VC.DISCLAIMER, style="Hint.TLabel").grid(row=5, column=0, sticky="e")
+        self.ch = tk.Canvas(f, bg=PANEL, highlightthickness=0, height=120)
+        self.ch.grid(row=6, column=0, sticky="ew", pady=(6, 0))
+        self.ch.bind("<Configure>", lambda e: self.charts())
+        self.res = {}
+        self.auto_then = None
+
+    def start(self, sim=None):
+        if self.app.eng:
+            return
+        self.app.cfg.update(vc_kind=self.kind_v.get(), vc_note=self.note_v.get())
+        self.res = {"kind": self.kind_v.get(), "note": self.note_v.get(), "wav": []}
+        self.when = datetime.datetime.now()
+        self.sim = sim
+        self.run("vc1")
+
+    def run(self, mode):
+        self.mode = mode
+        self.step_lb.configure(text=VC.STEPS[mode])
+        self.app.start(sim=self.sim(mode) if self.sim else None, plan=VC.plan_step(mode, E.parse_note(self.note_v.get())))
+
+    def live(self):
+        a = self.app
+        s = a.session
+        with a.eng.lock:
+            now = s.now_a
+            frames = list(s.frames[-2500:])
+        st = s.steps[0]
+        cv = self.cv
+        cv.delete("all")
+        W, H = max(cv.winfo_width(), 300), max(cv.winfo_height(), 150)
+        start_at = st.sing0
+        if now < start_at:
+            left = start_at - now
+            msg = "اسمع النوتة" if st.listen and st.listen0 <= now < st.listen1 else "استعد"
+            cv.create_text(W / 2, H / 2 - 30, text=msg, fill=MUTED, font=("Segoe UI", 14))
+            cv.create_text(W / 2, H / 2 + 20, text="%d" % int(np.ceil(left)), fill=GOLD, font=("Segoe UI", 44, "bold"))
+            return
+        v = [f for f in frames if f[1] is not None and f[0] >= start_at]
+        if s.mode == "vc1":
+            left = max(0.0, st.sing1 - now)
+            cv.create_text(W / 2, 40, text="%d" % int(np.ceil(left)), fill=TEXT, font=("Segoe UI", 34, "bold"))
+        elif s.mode == "vc2":
+            held = (v[-1][0] - v[0][0]) if v else 0.0
+            cv.create_text(W / 2, 40, text="%.1f s" % held, fill=TEXT, font=("Segoe UI", 30, "bold"))
+        else:
+            cv.create_text(W / 2, 40, text="%d" % int(np.ceil(max(0.0, st.sing1 - now))), fill=TEXT, font=("Segoe UI", 30, "bold"))
+        lo, hi = 41.0, 69.0
+        Y = lambda m: H - 10 - (m - lo) / (hi - lo) * (H - 80)
+        X = lambda t: 20 + (t - start_at) / max(6.0, now - start_at + 0.5) * (W - 40)
+        y67 = Y(E.TOP_LIMIT + 0.5)
+        cv.create_line(20, y67, W - 10, y67, fill="#7a2e2a", dash=(4, 4))
+        cv.create_text(W - 12, y67 - 8, text="G4", anchor="e", fill="#c0504a", font=("Segoe UI", 8))
+        pts = []
+        for f in v:
+            pts += [X(f[0]), Y(f[1])]
+        if len(pts) >= 4:
+            cv.create_line(*pts, fill="#7fd1ff", width=2)
+
+    def finished(self, sess, dur):
+        st = sess.steps[0]
+        T = np.array(sess.T) - sess.lat
+        x = sess.audio()
+        path = VC.wav_path(self.res["kind"], {"vc1": 1, "vc2": 2, "vc3": 3}[sess.mode], self.when)
+        self.res["wav"].append(VC.save_wav(path, x))
+        # the raw clock: sample 0 = session time 0; frames are on the same clock minus lat
+        xa = x[int(max(0, sess.lat) * E.SR):] if sess.lat > 0 else x
+        if sess.mode == "vc1":
+            r = VC.analyse_aah(xa, T, sess.M, st.sing0) or {}
+            self.res.update(r)
+            self.run("vc2")
+        elif sess.mode == "vc2":
+            self.res["mpt"] = VC.analyse_mpt(T, sess.M, st.sing0)
+            self.run("vc3")
+        else:
+            lo, hi = VC.analyse_range(T, sess.M, st.sing0)
+            self.res.update(lo_midi=None if lo is None else round(lo, 2), hi_midi=None if hi is None else round(hi, 2))
+            self.done()
+
+    def done(self):
+        hh = E.load_history()
+        e = {"date": self.when.strftime("%Y-%m-%d"), "time": self.when.strftime("%H:%M:%S"), "mode": "vcheck"}
+        e.update(self.res)
+        base = VC.baseline(hh, before=(e["date"], e["time"]))
+        E.save_session(e)
+        self.show(e, base)
+        self.app.phase_lb.configure(text="")
+        self.step_lb.configure(text="خلص الفحص ✔")
+        if self.app.autotest:
+            self.app.auto_results.append(dict(e))
+            self.app.shot("16-voice-%s" % e["kind"])
+            if self.auto_then:
+                self.app.root.after(1200, self.auto_then)
+
+    def show(self, e, base):
+        grades = {}
+        for k, lab, unit, hb in VC.METRICS:
+            v, c = self.rows[k]
+            val = e.get(k)
+            if val is None:
+                txt = "—"
+            elif k in ("lo_midi", "hi_midi"):
+                txt = E.note_label_rounded(val)
+            else:
+                txt = ("%.2f" if k in ("jitter", "shimmer") else "%.1f") % val + (" " + unit if unit else "")
+            v.configure(text=txt)
+            g = VC.grade(k, val, base)
+            grades[k] = g
+            c.delete("all")
+            c.create_oval(2, 2, 12, 12, fill=ZONE.get(g, "#5d544a") if g else "#5d544a", width=0)
+        self.verdict_lb.configure(text=VC.verdict(grades), foreground=ZONE["red"] if list(grades.values()).count("red") >= 2 else TEXT)
+        ba = VC.before_after(E.load_history(), e["date"])
+        if ba:
+            self.ba_lb.configure(text="قبل ← بعد اللايف:   " + "    ".join(
+                "%s %s%s" % (lab, arrow, "" if good else " (أسوأ)") for k, lab, a_, b_, arrow, good in ba))
+        else:
+            self.ba_lb.configure(text="")
+        self.charts()
+
+    def charts(self):
+        cv = self.ch
+        cv.delete("all")
+        W, H = max(cv.winfo_width(), 600), 120
+        hh = E.load_history()
+        n = len(VC.METRICS)
+        cw = W / n
+        for i, (k, lab, unit, hb) in enumerate(reversed(VC.METRICS)):
+            x0 = i * cw
+            rows = VC.daily(hh, k)
+            cv.create_text(x0 + cw - 8, 10, text=lab, anchor="e", fill=MUTED, font=("Segoe UI", 8, "bold"))
+            if not rows:
+                continue
+            vals = [v for _, v in rows]
+            lo, hi = min(vals), max(vals)
+            if hi - lo < 1e-6:
+                lo, hi = lo - 1, hi + 1
+            X = lambda j: x0 + 10 + j * (cw - 20) / max(1, len(rows) - 1)
+            Y = lambda v: H - 16 - (v - lo) / (hi - lo) * (H - 40)
+            pts = [(X(j), Y(v)) for j, (_, v) in enumerate(rows)]
+            if len(pts) > 1:
+                cv.create_line(*[c for p in pts for c in p], fill=GOLD, width=2)
+            for x, y in pts:
+                cv.create_oval(x - 3, y - 3, x + 3, y + 3, fill=GOLD, width=0)
+            last = vals[-1]
+            cv.create_text(pts[-1][0], pts[-1][1] - 9, text=E.note_label_rounded(last) if k in ("lo_midi", "hi_midi") else "%.1f" % last,
+                           fill=TEXT, font=("Segoe UI", 8))
+            cv.create_text(x0 + cw / 2, H - 5, text=rows[0][0][5:] + " → " + rows[-1][0][5:], fill="#5d544a", font=("Segoe UI", 7))
+
+    # -- CI ------------------------------------------------------------------------------
+    def autotest(self, then):
+        a = self.app
+        a.nb.select(4)
+        lat = a.autotest["sim_lat"]
+
+        def sim(mode):
+            def make(plan):
+                st = plan.steps[0]
+                n = int((plan.end + 2.5) * E.SR)
+                y = np.zeros(n, np.float32)
+                i0 = int((st.sing0 + 0.15 + lat) * E.SR)
+                f0 = E.midi_to_hz(st.segs[0].m0)
+                if mode == "vc1":
+                    z = VC.synth_aah(f0, 5.0, 0.6, 3.0, 20.0, seed=4)[0]
+                elif mode == "vc2":
+                    z = VC.synth_aah(f0, 9.0, 0.6, 3.0, 20.0, seed=5)[0]
+                else:
+                    tr = np.full(int(12 * E.SR), np.nan)
+                    u = np.arange(len(tr)) / E.SR
+                    tr[:] = 45 + 20 * (0.5 - 0.5 * np.cos(2 * np.pi * u / 12))      # A2 .. F4 and back
+                    z = E.synth_voice(tr, seed=6)
+                y[i0:i0 + len(z)] += z[:n - i0]
+                return y
+            return make
+        state = {"k": 0}
+        kinds = ["pre", "post"]
+
+        def nxt():
+            if state["k"] >= len(kinds):
+                self.auto_then = None
+                a.root.after(800, then)
+                return
+            self.kind_v.set(kinds[state["k"]])
+            state["k"] += 1
+            self.auto_then = nxt
+            self.start(sim=sim)
+            if state["k"] == 1:
+                a.root.after(5500, lambda: a.shot("16-voice-live"))
+        nxt()
 
 
 def best_speed(history, key):

@@ -93,7 +93,7 @@ jobs:
           $fail = @()
           if ([math]::Abs($r.calib.lat - 0.135) -gt 0.02) { $fail += "calibration $($r.calib.lat)" }
           $modes = ($r.sessions | ForEach-Object { $_.mode }) -join ","
-          if ($modes -ne "drone,callresp,song,onset,stability,leaps,ajnas,runs,drill,hold,sss,phrase") { $fail += "modes $modes" }
+          if ($modes -ne "drone,callresp,song,onset,stability,leaps,ajnas,runs,drill,hold,sss,phrase,vcheck,vcheck") { $fail += "modes $modes" }
           $ru = $r.runs
           if ($ru.runs.Count -lt 1 -or $ru.runs[0].n -lt 10 -or [math]::Abs($ru.runs[0].rate - 7.1) -gt 0.6) { $fail += "run detection" }
           if ($ru.maqam.maqam -ne "Ajam") { $fail += "maqam guess $($ru.maqam.maqam)" }
@@ -109,6 +109,12 @@ jobs:
           $bp = $r.sessions | Where-Object { $_.mode -eq "phrase" }
           if ($bp.reps -ne 3) { $fail += "phrase reps $($bp.reps)" }
           if (-not $r.warm_mp3 -or -not (Test-Path $r.warm_mp3)) { $fail += "warm-up MP3 missing" } else { Get-Item $r.warm_mp3 | Select-Object Name, Length }
+          if (-not $r.cool_mp3 -or -not (Test-Path $r.cool_mp3)) { $fail += "cool-down MP3 missing" } else { Get-Item $r.cool_mp3 | Select-Object Name, Length }
+          foreach ($v in ($r.sessions | Where-Object { $_.mode -eq "vcheck" })) {
+            $v | Select-Object kind, jitter, shimmer, hnr, stab_c, mpt, lo_midi, hi_midi | Format-List | Out-String
+            if ($v.jitter -lt 0.3 -or $v.jitter -gt 0.9 -or $v.hnr -lt 15 -or $v.mpt -lt 8 -or $v.mpt -gt 10 -or $v.wav.Count -ne 3) { $fail += "voice check $($v.kind)" }
+            foreach ($w in $v.wav) { if (-not (Test-Path $w)) { $fail += "voice WAV missing" } }
+          }
           foreach ($s in ($r.sessions | Where-Object { $_.mode -notin @("runs", "drill", "hold", "sss", "phrase") })) {
             if ($s.max_target -gt 67.0001) { $fail += "$($s.mode): target above G4" }
             if ($s.notes -lt 2) { $fail += "$($s.mode): no notes scored" }
@@ -145,6 +151,7 @@ jobs:
     needs: [build, test-windows]
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
       - name: Publish release
         env:
@@ -155,4 +162,4 @@ jobs:
           gh release create "$tag" -R "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
             --title "PitchTrainer (Windows)" --prerelease \
             --notes "حمّل PitchTrainer-windows.zip، فكّه، ودوس START.bat. التفاصيل في README.md جوه الفولدر." \
-            PitchTrainer-windows/PitchTrainer-windows.zip selftest-results/selftest-results.zip
+            PitchTrainer-windows/PitchTrainer-windows.zip selftest-results/selftest-results.zip pitch-trainer/GUIDE_AR.md

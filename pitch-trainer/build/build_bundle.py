@@ -108,7 +108,7 @@ def main():
     # 6. app, docs
     shutil.copytree(os.path.join(SRC, "app"), os.path.join(dst, "app"),
                     ignore=shutil.ignore_patterns("__pycache__"))
-    for f in ("START.bat", "README.md"):
+    for f in ("START.bat", "README.md", "GUIDE_AR.md"):
         shutil.copy2(os.path.join(SRC, f), dst)
 
     # 7. zip

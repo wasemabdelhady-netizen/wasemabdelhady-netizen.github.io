@@ -503,6 +503,39 @@ def main():
     info_ = subprocess.run([G.ffmpeg_path(), "-i", mp], stderr=subprocess.PIPE).stderr.decode("utf-8", "replace")
     ok(os.path.isfile(mp) and "mp3" in info_ and "دقايق" in os.path.basename(mp), "warm-up MP3: " + os.path.basename(mp))
 
+    worst = 0
+    for st_ in range(40, 56):
+        for tp in range(55, 72):
+            cap_ = min(tp, 67) - 3
+            for p_ in WU.cooldown(st_, tp):
+                for it in p_.items:
+                    if it[0] == "notes":
+                        worst = max(worst, max(n[2] for n in it[1]) - cap_)
+                    elif it[0] == "glide":
+                        worst = max(worst, max(it[1], it[2]) - cap_)
+    cl = sum(p_.dur() for p_ in WU.cooldown(43, 62)) / 60
+    ok(worst <= 1e-9 and 3.0 <= cl <= 4.0, "cool-down: %.1f min, everything ≥ 3 semitones under the chosen top" % cl)
+
+    print("— «صوتك النهارده»: jitter / shimmer / HNR on synthetic vowels with known values")
+    import voicecheck as VC
+    vc_rows = []
+    for f0, j_, s_, h_ in ((110, 0.5, 3.0, 20), (130.8, 0.3, 2.0, 25), (196, 0.8, 4.0, 15), (220, 1.5, 6.0, 10), (261.6, 0.2, 1.5, 30)):
+        y, tj, ts, th = VC.synth_aah(f0, 5, j_, s_, h_, seed=int(f0))
+        mj, ms = VC.jitter_shimmer(y.astype(float), f0)
+        mh = VC.hnr(y.astype(float), f0)
+        vc_rows.append((f0, tj, mj, ts, ms, th, mh))
+        print("     f0 %5.1f Hz  jitter %.2f%% → %.2f%%   shimmer %.2f%% → %.2f%%   HNR %.0f dB → %.1f dB" % (f0, tj, mj, ts, ms, th, mh))
+    dj = max(abs(r[2] - r[1]) for r in vc_rows)
+    ds = max(abs(r[4] - r[3]) for r in vc_rows)
+    dh = max(abs(r[6] - r[5]) for r in vc_rows)
+    ok(dj < 0.2 and ds < 1.2 and dh < 2.0, "measured − true: jitter ≤ %.2f points, shimmer ≤ %.2f points, HNR ≤ %.1f dB" % (dj, ds, dh))
+    hist_ = [{"mode": "vcheck", "date": "2026-11-0%d" % k, "time": "10:00:00", "jitter": 0.5, "shimmer": 3.0, "hnr": 20.0,
+              "stab_c": 8.0, "mpt": 15.0, "lo_midi": 43.0, "hi_midi": 64.0} for k in range(1, 8)]
+    base = VC.baseline(hist_)
+    gr = {k: VC.grade(k, v, base) for k, v in (("jitter", 0.52), ("shimmer", 4.2), ("hnr", 15.5), ("mpt", 10.0), ("hi_midi", 63.0))}
+    ok(gr == {"jitter": "green", "shimmer": "red", "hnr": "red", "mpt": "red", "hi_midi": "green"}, "grades vs my last 7 checks: %s" % gr)
+    ok("أتعب" in VC.verdict(gr), "verdict: " + VC.verdict(gr))
+
     print("— «النَفَس»")
     import breath as BR
 

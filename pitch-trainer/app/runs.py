@@ -200,7 +200,8 @@ def fast_notes(T, M, stable_c=15.0, min_len=0.04, merge_c=40.0):
         i = j
     merged = []
     for t0, t1, c in out:
-        if merged and abs(c - merged[-1][2]) * 100 < merge_c and t0 - merged[-1][1] < 0.08:   # a wide vibrato splits a held note
+        # same pitch (< 40 c) with no silence in between = one note (a wide vibrato or a slide splits held notes)
+        if merged and abs(c - merged[-1][2]) * 100 < merge_c and voiced_between(T, M, merged[-1][1], t0):
             p = merged[-1]
             w0, w1 = p[1] - p[0], t1 - t0
             p[2] = (p[2] * w0 + c * w1) / (w0 + w1)
@@ -210,7 +211,47 @@ def fast_notes(T, M, stable_c=15.0, min_len=0.04, merge_c=40.0):
     return [tuple(x) for x in merged]
 
 
-def find_runs(notes, min_rate=4.0, min_notes=3, max_gap=0.10):
+def voiced_between(T, M, a, b):
+    i, j = np.searchsorted(T, a), np.searchsorted(T, b)
+    return not np.isnan(M[i:j]).any()
+
+
+def octave_fix(r, far=9.0):
+    """Notes more than `far` semitones from the run's median: moved an octave when
+    that brings them closer, otherwise marked doubtful (indexes in r["doubt"])."""
+    ms = np.array([n[2] for n in r["notes"]])
+    mu = float(np.median(ms))
+    notes, doubt, fixed = [], [], 0
+    for k, (a, b, m) in enumerate(r["notes"]):
+        if abs(m - mu) > far:
+            c = m - 12 if m > mu else m + 12
+            if abs(c - mu) < abs(m - mu):
+                m = c
+                fixed += 1
+            if abs(m - mu) > far:
+                doubt.append(k)
+        notes.append((a, b, m))
+    r.update(notes=notes, doubt=doubt, fixed=fixed)
+    return r
+
+
+def vocal_like(T, M, r, min_jitter=1.0):
+    """A sung line wobbles (jitter, vibrato); a keyboard holds a dead-flat pitch.
+    Median frame-to-frame movement inside the run's notes, in cents."""
+    vals = []
+    for a, b, m in r["notes"]:
+        i, j = np.searchsorted(T, a + 0.01), np.searchsorted(T, b - 0.01)
+        v = M[i:j] * 100
+        v = v[~np.isnan(v)]
+        if len(v) > 4:
+            vals += list(np.abs(np.diff(v)))
+    j = float(np.median(vals)) if vals else 0.0
+    r["jitter"] = round(j, 2)
+    r["music_only"] = j < min_jitter
+    return r
+
+
+def find_runs(notes, min_rate=4.0, min_notes=3, max_gap=0.10, T=None, M=None):
     """Chains of short notes: each note shorter than ~1.6/min_rate s, gaps under
     100 ms, at least min_notes, overall rate (notes / span) ≥ min_rate."""
     max_note = max(0.22, 1.6 / min_rate)
@@ -221,8 +262,9 @@ def find_runs(notes, min_rate=4.0, min_notes=3, max_gap=0.10):
             span = cur[-1][1] - cur[0][0]
             rate = len(cur) / span
             if rate >= min_rate:
-                runs.append({"t0": round(cur[0][0], 3), "t1": round(cur[-1][1], 3), "notes": list(cur),
-                             "rate": round(rate, 2), "name": ""})
+                r = octave_fix({"t0": round(cur[0][0], 3), "t1": round(cur[-1][1], 3), "notes": list(cur),
+                                "rate": round(rate, 2), "name": ""})
+                runs.append(vocal_like(T, M, r) if T is not None else r)
 
     for nt in notes:
         short = (nt[1] - nt[0]) <= max_note
@@ -235,12 +277,13 @@ def find_runs(notes, min_rate=4.0, min_notes=3, max_gap=0.10):
     return runs
 
 
-def run_from(notes, t0, t1, name=""):
+def run_from(notes, t0, t1, name="", T=None, M=None):
     sel = [n for n in notes if n[0] >= t0 - 1e-6 and n[1] <= t1 + 1e-6]
     if not sel:
         return None
     span = max(1e-3, sel[-1][1] - sel[0][0])
-    return {"t0": round(t0, 3), "t1": round(t1, 3), "notes": sel, "rate": round(len(sel) / span, 2), "name": name}
+    r = octave_fix({"t0": round(t0, 3), "t1": round(t1, 3), "notes": sel, "rate": round(len(sel) / span, 2), "name": name})
+    return vocal_like(T, M, r) if T is not None else r
 
 
 # --------------------------------------------------- maqam / jins guess

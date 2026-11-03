@@ -108,6 +108,7 @@ jobs:
           if ([math]::Abs($bs.rounds[0].hiss_s - 5.4) -gt 0.4 -or [math]::Abs($bs.rounds[1].hiss_s - 6.0) -gt 0.4) { $fail += "sss analysis" }
           $bp = $r.sessions | Where-Object { $_.mode -eq "phrase" }
           if ($bp.reps -ne 3) { $fail += "phrase reps $($bp.reps)" }
+          if (-not $r.warm_mp3 -or -not (Test-Path $r.warm_mp3)) { $fail += "warm-up MP3 missing" } else { Get-Item $r.warm_mp3 | Select-Object Name, Length }
           foreach ($s in ($r.sessions | Where-Object { $_.mode -notin @("runs", "drill", "hold", "sss", "phrase") })) {
             if ($s.max_target -gt 67.0001) { $fail += "$($s.mode): target above G4" }
             if ($s.notes -lt 2) { $fail += "$($s.mode): no notes scored" }

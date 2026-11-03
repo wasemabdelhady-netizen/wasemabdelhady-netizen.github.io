@@ -37,6 +37,7 @@ try:
     import song as G
     import runs as RU
     import breath as BR
+    import warmup as WU
 except Exception:
     crash_log(traceback.format_exc())
     raise
@@ -460,6 +461,8 @@ class App:
             self.stem_lb.configure(text=os.path.basename(self.v["stem"].get()))
         self.runs_tab = RunsTab(self)
         self.breath_tab = BreathTab(self)
+        self.warm_tab = WarmupTab(self)
+        self.nb.select(0 if autotest else min(int(self.cfg.get("tab", 0)), 3))
         root.protocol("WM_DELETE_WINDOW", self.quit)
         root.after(40, self.tick)
         if autotest:
@@ -532,6 +535,7 @@ class App:
 
     def save_cfg(self):
         d = dict(self.cfg)               # keeps lat_ms, drill speeds, run settings
+        d.update(self.extra_cfg())
         d.update({k: v.get() for k, v in self.v.items()})
         d.update({k: v.get() for k, v in self.b.items()})
         self.cfg = d
@@ -540,6 +544,25 @@ class App:
                 json.dump(d, f, ensure_ascii=False)
         except OSError:
             pass
+
+    def extra_cfg(self):
+        """The other tabs' fields, so the window opens as it was left."""
+        d = {}
+        rt, bt, wt = getattr(self, "runs_tab", None), getattr(self, "breath_tab", None), getattr(self, "warm_tab", None)
+        if rt:
+            d.update(drill_maq=rt.dv["maq"].get(), drill_kind=rt.dv["kind"].get(), drill_start=rt.dv["start"].get(),
+                     run_speed=rt.pv["speed"].get(), run_semis=rt.pv["semis"].get(), run_rate=rt.rate.get(),
+                     run_loop=rt.loop_v.get(), run_all=rt.all_v.get())
+        if bt:
+            d.update(hold_note=bt.note_v.get(), sss_pattern=bt.pat_v.get(), sss_rounds=bt.rounds_v.get())
+        if wt:
+            d.update(warm_start=wt.wv["start"].get(), warm_top=wt.wv["top"].get(), warm_len=wt.wv["len"].get(), warm_ref=wt.wv["ref"].get())
+        if hasattr(self, "nb"):
+            try:
+                d["tab"] = self.nb.index(self.nb.select())
+            except tk.TclError:
+                pass
+        return d
 
     def show_lat(self):
         v = self.cfg.get("lat_ms")
@@ -852,6 +875,8 @@ class App:
         return p
 
     def quit(self):
+        if not self.autotest:
+            self.save_cfg()
         self.stop()
         if self.eng:
             self.eng.join(timeout=2)
@@ -1198,8 +1223,24 @@ class App:
             self.auto_i -= 1
             self.runs_tab.autotest(self.sim_for("runs", 20), lambda: self.breath_tab.autotest(self.auto_next))
             return
-        if i >= len(plans):
+        if i >= len(plans) and not getattr(self, "warm_done", False):
+            self.warm_done = True
+            self.auto_i -= 1
             self.nb.select(0)
+            wt = self.warm_tab
+            wt.wv["len"].set("short")
+            wt.cbs["len"].current(0)
+            wt.fill()
+            wt.play()
+            self.root.after(9000, lambda: self.shot("15-warmup"))
+            def exp():
+                wt.stop()
+                self.warm_mp3 = wt.export()
+                self.root.after(500, self.auto_next)
+            self.root.after(11000, exp)
+            return
+        if i >= len(plans):
+            self.nb.select(1)
             win = self.show_progress()
             win.geometry("+%d+%d" % (self.root.winfo_rootx() + 300, self.root.winfo_rooty() + 30))
             self.root.after(1200, lambda: (self.shot("90-progress"), self.root.after(1500, self.auto_write)))
@@ -1254,6 +1295,7 @@ class App:
     def auto_write(self):
         rp = self.day_report()
         out = {"sessions": self.auto_results, "calib": self.calib, "report": rp, "runs": getattr(self, "auto_runs", None),
+               "warm_mp3": getattr(self, "warm_mp3", None),
                "history_days": E.daily(E.load_history()), "history_file": E.HISTORY_FILE,
                "sim_lat": self.autotest["sim_lat"]}
         with open(self.autotest["out"], "w", encoding="utf-8") as fh:
@@ -1297,15 +1339,17 @@ class RunsTab:
         ttk.Label(top, text="حد السرعة (نوتة/ث)").pack(side="left", padx=(0, 10))
         self.warn_lb = ttk.Label(top, text="", foreground="#e5534b")
         self.warn_lb.pack(side="left", padx=10)
+        self.all_v = tk.BooleanVar(value=cfg.get("run_all", False))
+        ttk.Checkbutton(top, text="اعرض الكل", variable=self.all_v, command=lambda: self.fill()).pack(side="left", padx=6)
 
         # ---- runs list (left) + edit
         left = ttk.Frame(f)
         left.grid(row=1, column=0, sticky="nsw", padx=(0, 10))
         self.maq_lb = ttk.Label(left, text="", foreground=GOLD, font=("Segoe UI", 11, "bold"))
         self.maq_lb.pack(anchor="e")
-        self.tree = ttk.Treeview(left, columns=("i", "nm", "t", "d", "n", "r", "j"), show="headings", height=11)
-        for k, t, w in (("i", "#", 30), ("nm", "الاسم", 80), ("t", "الوقت", 62), ("d", "المدة", 48), ("n", "نوتات", 46),
-                        ("r", "نوتة/ث", 54), ("j", "الجنس", 96)):
+        self.tree = ttk.Treeview(left, columns=("i", "nm", "t", "d", "n", "q", "r", "j"), show="headings", height=11)
+        for k, t, w in (("i", "#", 28), ("nm", "الاسم", 72), ("t", "الوقت", 58), ("d", "المدة", 44), ("n", "نوتات", 42),
+                        ("q", "مشكوك", 46), ("r", "نوتة/ث", 50), ("j", "الجنس", 92)):
             self.tree.heading(k, text=t)
             self.tree.column(k, width=w, anchor="center")
         self.tree.pack(fill="y", expand=True)
@@ -1354,7 +1398,8 @@ class RunsTab:
         self.cv.grid(row=1, column=0, sticky="nsew", pady=4)
         pr = ttk.Frame(right)
         pr.grid(row=2, column=0, sticky="ew")
-        self.pv = {"a": tk.StringVar(), "b": tk.StringVar(), "speed": tk.StringVar(value="75"), "semis": tk.StringVar(value="0")}
+        self.pv = {"a": tk.StringVar(), "b": tk.StringVar(), "speed": tk.StringVar(value=str(cfg.get("run_speed", "75"))),
+                   "semis": tk.StringVar(value=str(cfg.get("run_semis", "0")))}
         for lab, k, w in (("A", "a", 7), ("B", "b", 7)):
             ttk.Label(pr, text=lab).pack(side="right", padx=(6, 2))
             ttk.Entry(pr, textvariable=self.pv[k], width=w).pack(side="right")
@@ -1364,7 +1409,7 @@ class RunsTab:
         tk.Spinbox(pr, from_=-12, to=12, textvariable=self.pv["semis"], width=4, bg="#1a1714", fg=TEXT,
                    buttonbackground="#2a241d", insertbackground=TEXT).pack(side="right")
         ttk.Button(pr, text="اقترح", command=self.suggest).pack(side="right", padx=4)
-        self.loop_v = tk.BooleanVar(value=True)
+        self.loop_v = tk.BooleanVar(value=cfg.get("run_loop", True))
         ttk.Checkbutton(pr, text="لوب", variable=self.loop_v).pack(side="right", padx=6)
         bt = ttk.Frame(right)
         bt.grid(row=3, column=0, sticky="ew", pady=4)
@@ -1445,7 +1490,7 @@ class RunsTab:
                 d = json.load(fh)
             if d.get("rate") != round(self.rate.get(), 1):
                 return None
-            return [RU.run_from(self.rec["notes"], r["t0"], r["t1"], r.get("name", "")) for r in d["runs"]]
+            return [RU.run_from(self.rec["notes"], r["t0"], r["t1"], r.get("name", ""), self.rec["T"], self.rec["M"]) for r in d["runs"]]
         except (OSError, ValueError, KeyError, TypeError):
             return None
 
@@ -1466,7 +1511,7 @@ class RunsTab:
         self.app.cfg["run_rate"] = self.rate.get()
         if not self.rec:
             return
-        self.runs = RU.find_runs(self.rec["notes"], self.rate.get())
+        self.runs = RU.find_runs(self.rec["notes"], self.rate.get(), T=self.rec["T"], M=self.rec["M"])
         self.fill()
         self.save_runs()
 
@@ -1477,12 +1522,20 @@ class RunsTab:
 
     def fill(self):
         self.tree.delete(*self.tree.get_children())
+        hidden = 0
+        first = None
         for i, r in enumerate(self.runs):
-            self.tree.insert("", "end", iid=str(i), values=(i + 1, r["name"] or "", G.fmt_t(r["t0"]), "%.1fs" % (r["t1"] - r["t0"]),
-                                                            len(r["notes"]), "%.1f" % r["rate"], self.jins_of(r)))
-        self.msg.configure(text="%d عُربة" % len(self.runs))
-        if self.runs:
-            self.tree.selection_set("0")
+            if r.get("music_only") and not self.all_v.get():
+                hidden += 1
+                continue
+            mark = " ♪" if r.get("music_only") else ""
+            self.tree.insert("", "end", iid=str(i), values=(i + 1, (r["name"] or "") + mark, G.fmt_t(r["t0"]), "%.1fs" % (r["t1"] - r["t0"]),
+                                                            len(r["notes"]), len(r.get("doubt", [])) or "", "%.1f" % r["rate"], self.jins_of(r)))
+            first = str(i) if first is None else first
+        self.msg.configure(text="%d عُربة%s" % (len(self.runs) - hidden,
+                                                 ("   ·   اتخبّى %d (مزيكا من غير صوت ♪ — «اعرض الكل»)" % hidden) if hidden else ""))
+        if first is not None:
+            self.tree.selection_set(first)
 
     def cur(self):
         sel = self.tree.selection()
@@ -1497,7 +1550,9 @@ class RunsTab:
         self.name_v.set(r["name"])
         self.suggest()
         self.notes_lb.delete("1.0", "end")
-        self.notes_lb.insert("end", "  ".join("%s %s" % RU.names(n[2])[::-1] for n in r["notes"]), "r")
+        dz = set(r.get("doubt", []))
+        self.notes_lb.insert("end", "  ".join("%s %s%s" % (RU.names(n[2])[1], RU.names(n[2])[0], "؟" if k in dz else "")
+                                              for k, n in enumerate(r["notes"])), "r")
         self.result = None
         self.draw()
         self.show_best()
@@ -1529,7 +1584,7 @@ class RunsTab:
             a, b = self.ab()
         except ValueError:
             return
-        nr = RU.run_from(self.rec["notes"], a, b, r["name"] if r else "") if self.rec else None
+        nr = RU.run_from(self.rec["notes"], a, b, r["name"] if r else "", self.rec["T"], self.rec["M"]) if self.rec else None
         if nr and r is not None:
             self.runs[i] = nr
             self.fill()
@@ -1541,7 +1596,7 @@ class RunsTab:
             a, b = self.ab()
         except ValueError:
             return
-        nr = RU.run_from(self.rec["notes"], a, b, self.name_v.get().strip()) if self.rec else None
+        nr = RU.run_from(self.rec["notes"], a, b, self.name_v.get().strip(), self.rec["T"], self.rec["M"]) if self.rec else None
         if nr:
             self.runs.append(nr)
             self.runs.sort(key=lambda r: r["t0"])
@@ -1575,8 +1630,12 @@ class RunsTab:
         a0 = max(0.0, a - LEAD)
         au = self.rec["audio"][int(a0 * E.SR):int((b + 0.25) * E.SR)]
         y = RU.stretch(au, sp, st)
-        notes = [((n0 - a0) / sp, (n1 - a0) / sp, n[2] + st) for n in self.rec["notes"]
-                 for n0, n1 in [(n[0], n[1])] if n0 >= a - 1e-6 and n1 <= b + 1e-6]
+        i, r = self.cur()
+        src = self.rec["notes"]
+        if r is not None:      # inside the run use its octave-checked notes
+            src = [n for n in src if n[1] <= r["t0"] or n[0] >= r["t1"]] + list(r["notes"])
+            src.sort()
+        notes = [((n[0] - a0) / sp, (n[1] - a0) / sp, n[2] + st) for n in src if n[0] >= a - 1e-6 and n[1] <= b + 1e-6]
         return y * 0.9, notes, sp, st
 
     def ensure_mixer(self):
@@ -1806,7 +1865,7 @@ class RunsTab:
         """CI: a synthetic 'mawwal' with a known run → detect, practise at 75% −2
         semitones, sing after it, then one drill; screenshots on the way."""
         a = self.app
-        a.nb.select(1)
+        a.nb.select(2)
         folder = os.path.join(a.shots, "عُرَب تجربة")
         path, truth = make_test_recording(folder)
         self.truth = truth
@@ -1863,7 +1922,7 @@ class BreathTab:
         # hold
         h = ttk.LabelFrame(row, text="  امسك النوتة  ", padding=8)
         h.grid(row=0, column=2, sticky="nsew", padx=4)
-        self.note_v = tk.StringVar(value=E.note_name(BR.suggest_note(hist)))
+        self.note_v = tk.StringVar(value=a.cfg.get("hold_note") or E.note_name(BR.suggest_note(hist)))
         cb = ttk.Combobox(h, textvariable=self.note_v, state="readonly", width=6, values=E.note_choices(43, E.TOP_LIMIT))
         cb.grid(row=0, column=0, sticky="w")
         ttk.Label(h, text="النوتة").grid(row=0, column=1, sticky="e")
@@ -1877,7 +1936,7 @@ class BreathTab:
         self.pat_v = tk.StringVar(value=a.cfg.get("sss_pattern", "4-4-8"))
         ttk.Combobox(x, textvariable=self.pat_v, state="readonly", width=8, values=[k for k, _ in BR.PATTERNS]).grid(row=0, column=0, sticky="w")
         ttk.Label(x, text="النمط").grid(row=0, column=1, sticky="e")
-        self.rounds_v = tk.StringVar(value="3")
+        self.rounds_v = tk.StringVar(value=str(a.cfg.get("sss_rounds", "3")))
         tk.Spinbox(x, from_=1, to=8, textvariable=self.rounds_v, width=3, bg="#1a1714", fg=TEXT, buttonbackground="#2a241d").grid(row=1, column=0, sticky="w")
         ttk.Label(x, text="مرات").grid(row=1, column=1, sticky="e")
         ttk.Button(x, text="▶ ابدأ", style="Go.TButton", command=self.sss).grid(row=2, column=0, columnspan=2, sticky="ew", pady=4)
@@ -2054,7 +2113,7 @@ class BreathTab:
     # -- CI ------------------------------------------------------------------------------
     def autotest(self, then):
         a = self.app
-        a.nb.select(2)
+        a.nb.select(3)
         lat = a.autotest["sim_lat"]
         self.auto_then = None
 
@@ -2098,6 +2157,132 @@ class BreathTab:
         self.note_v.set("G3")
         self.hold(sim=hold_sim)
         a.root.after(7000, lambda: a.shot("11-hold-live"))
+
+
+# ------------------------------------------------------------- «تسخين» tab
+class WarmupTab:
+    def __init__(self, app):
+        self.app = app
+        a = app
+        cfg = a.cfg
+        f = ttk.Frame(a.nb, padding=10)
+        a.nb.insert(0, f, text="  تسخين  ")
+        self.f = f
+        f.columnconfigure(0, weight=1)
+        f.rowconfigure(2, weight=1)
+        self.mixer = None
+        self.job = None
+        self.t0 = None
+        self.marks = []
+        top = ttk.Frame(f)
+        top.grid(row=0, column=0, sticky="e")
+        self.wv = {"start": tk.StringVar(value=cfg.get("warm_start", "G2")), "top": tk.StringVar(value=cfg.get("warm_top", "D4")),
+                   "len": tk.StringVar(value=cfg.get("warm_len", "normal")), "ref": tk.StringVar(value=cfg.get("warm_ref", "oud"))}
+        self.cbs = {}
+        for k, lab, pairs in (("start", "القرار", [(n, n) for n in E.note_choices(40, 55)]),
+                              ("top", "أعلى نوتة", [(n, n) for n in E.note_choices(55, E.TOP_LIMIT)]),
+                              ("len", "الطول", [("short", "قصير (4 دقايق)"), ("normal", "عادي (7 دقايق)")]),
+                              ("ref", "صوت المرجع", [("oud", "عود"), ("piano", "بيانو")])):
+            ttk.Label(top, text=lab).pack(side="right", padx=(10, 4))
+            cb = ttk.Combobox(top, state="readonly", width=14 if k == "len" else 7, values=[t for _, t in pairs])
+            keys = [x for x, _ in pairs]
+            cb.current(keys.index(self.wv[k].get()) if self.wv[k].get() in keys else 0)
+            cb.bind("<<ComboboxSelected>>", lambda e, k=k, cb=cb, keys=keys: (self.wv[k].set(keys[cb.current()]), self.fill()))
+            cb.pack(side="right")
+            cb.keys = keys
+            self.cbs[k] = cb
+        self.tree = ttk.Treeview(f, columns=("n", "d", "h"), show="headings", height=6)
+        for k, t, w in (("n", "التمرين", 170), ("d", "المدة", 70), ("h", "إزاي", 560)):
+            self.tree.heading(k, text=t)
+            self.tree.column(k, width=w, anchor="e" if k == "h" else "center")
+        self.tree.grid(row=1, column=0, sticky="ew", pady=8)
+        self.cv = tk.Canvas(f, bg=PANEL, highlightthickness=0, height=220)
+        self.cv.grid(row=2, column=0, sticky="nsew")
+        bt = ttk.Frame(f)
+        bt.grid(row=3, column=0, sticky="e", pady=8)
+        ttk.Button(bt, text="افتح الفولدر", command=lambda: (os.makedirs(WU.out_dir(), exist_ok=True), open_path(WU.out_dir()))).pack(side="right", padx=3)
+        ttk.Button(bt, text="نزّل MP3  ⬇", command=self.export).pack(side="right", padx=3)
+        ttk.Button(bt, text="■ وقّف", command=self.stop).pack(side="right", padx=3)
+        ttk.Button(bt, text="▶ شغّل الروتين", style="Go.TButton", command=self.play).pack(side="right", padx=3)
+        self.msg = ttk.Label(f, text="", style="Hint.TLabel")
+        self.msg.grid(row=4, column=0, sticky="e")
+        self.fill()
+
+    def parts(self):
+        return WU.routine(E.parse_note(self.wv["start"].get()), E.parse_note(self.wv["top"].get()), self.wv["len"].get())
+
+    def fill(self):
+        self.tree.delete(*self.tree.get_children())
+        ps = self.parts()
+        for i, p in enumerate(ps):
+            self.tree.insert("", "end", iid=str(i), values=(p.name, "%d:%02d" % divmod(int(round(p.dur())), 60), p.how))
+        tot = sum(p.dur() for p in ps)
+        self.msg.configure(text="الروتين كله %d:%02d — مفيش نوتة فوق %s" % (int(tot) // 60, int(tot) % 60, self.wv["top"].get()))
+        self.draw(None)
+
+    def play(self):
+        if self.app.eng:
+            return
+        self.stop()
+        y, self.marks = WU.render(self.parts(), self.wv["ref"].get())
+        self.mixer = Mixer(enabled=not self.app.autotest)
+        self.mixer.play(y)
+        self.t0 = time.time()
+        self.total = len(y) / E.SR
+        self.tick()
+
+    def stop(self):
+        if self.job:
+            self.app.root.after_cancel(self.job)
+            self.job = None
+        if self.mixer:
+            self.mixer.stop()
+            self.mixer = None
+        self.t0 = None
+        self.draw(None)
+
+    def tick(self):
+        if self.t0 is None:
+            return
+        el = time.time() - self.t0
+        if el > self.total:
+            self.stop()
+            self.msg.configure(text="خلص التسخين ✔ — يلا غنّي")
+            return
+        self.draw(el)
+        self.job = self.app.root.after(200, self.tick)
+
+    def draw(self, el):
+        cv = self.cv
+        cv.delete("all")
+        W, H = max(cv.winfo_width(), 400), max(cv.winfo_height(), 160)
+        if el is None:
+            cv.create_text(W / 2, H / 2, text="دوس «شغّل الروتين» — قبل كل تمرين سكتة للنَفَس وتسقيف خفيف", fill=MUTED, font=("Segoe UI", 12))
+            return
+        cur = [(i, p, a, b) for i, (p, a, b) in enumerate(self.marks) if a <= el < b]
+        if cur:
+            i, p, a, b = cur[0]
+            self.tree.selection_set(str(i))
+            breath = el < a + WU.BREATH_GAP
+            cv.create_text(W - 20, 34, text=p.name, anchor="e", fill=GOLD, font=("Segoe UI", 20, "bold"))
+            cv.create_text(W - 20, 74, text="خد نَفَس…" if breath else p.how, anchor="e", fill=TEXT, font=("Segoe UI", 12), width=W - 60)
+            cv.create_text(20, 34, text="%d:%02d" % divmod(int(b - el), 60), anchor="w", fill=TEXT, font=("Segoe UI", 20, "bold"))
+            cv.create_rectangle(20, H - 50, 20 + (W - 40) * (el - a) / (b - a), H - 40, fill=GOLD, width=0)
+        cv.create_rectangle(20, H - 24, 20 + (W - 40) * el / self.total, H - 18, fill="#4cc38a", width=0)
+        cv.create_text(W / 2, H - 8, text="%d:%02d / %d:%02d" % (int(el) // 60, int(el) % 60, int(self.total) // 60, int(self.total) % 60),
+                       fill=MUTED, font=("Segoe UI", 8))
+
+    def export(self):
+        self.msg.configure(text="بعمل الملف…")
+        self.app.root.update_idletasks()
+        try:
+            p = WU.export_mp3(self.parts(), self.wv["ref"].get(), self.wv["len"].get())
+        except Exception as ex:
+            crash_log(traceback.format_exc())
+            messagebox.showerror("PitchTrainer", str(ex)[:500])
+            return None
+        self.msg.configure(text="اتحفظ: " + p)
+        return p
 
 
 def best_speed(history, key):

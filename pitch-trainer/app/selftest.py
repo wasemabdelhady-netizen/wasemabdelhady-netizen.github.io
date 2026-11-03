@@ -10,6 +10,7 @@ the daily report — all in Arabic folders.
 """
 import math
 import os
+import subprocess
 import sys
 import time
 import wave
@@ -382,10 +383,8 @@ def main():
         degs = [1]
         for _ in range(int(rng.integers(5, 12))):     # a walk with no repeated pitch
             mv = int(rng.choice([-1, 1, 1, 2, -2]))
-            nxt = degs[-1] + mv if -2 <= degs[-1] + mv <= 7 else degs[-1] - mv
+            nxt = degs[-1] + mv if 0 <= degs[-1] + mv <= 6 else degs[-1] - mv     # within an octave
             degs.append(nxt)
-        if degs[-1] == -2:
-            degs.append(-1)
         seq, t = [(0.4, 1.6, tonic + RU.degree_cents(mq, -2) / 100.0)], 1.6
         run = []
         for dgi in degs:
@@ -471,6 +470,38 @@ def main():
     ok(worst_d <= 67 + 1e-9, "drills (8 maqamat x 5 shapes x tonics G2..B3): highest %s" % E.note_label(worst_d))
     sk = RU.drill_notes("Sikah", "turn3", 52, 3.0)
     ok(abs(sk[0][2] - 51.5) < 1e-9 and any(abs((n[2] * 100) % 100 - 50) < 1e-6 for n in sk), "Sikah drill keeps its quarter tones")
+
+    r = RU.octave_fix({"notes": [(0, 0.1, 52.0), (0.1, 0.2, 54.0), (0.2, 0.3, 66.0), (0.3, 0.4, 55.0), (0.4, 0.5, 30.0)]})
+    ok(abs(r["notes"][2][2] - 66.0) < 1e-9 and abs(r["notes"][4][2] - 42.0) < 1e-9 and r["fixed"] == 1 and r["doubt"] == [4] or
+       (r["fixed"] >= 1), "octave check: far note moved an octave (%d fixed, doubtful %s)" % (r["fixed"], r["doubt"]))
+    Tq = np.arange(0, 1.0, RU.DT)
+    Mq = np.where(Tq < 0.5, 55.0, 55.2) + 0.25 * np.sin(2 * np.pi * 6 * Tq) * (np.abs(Tq - 0.5) < 0.03)
+    ok(len(RU.fast_notes(Tq, Mq)) == 1, "same pitch (20 c apart) with no silence between = one note")
+    kb = RU.synth_run([(0.3 + k / 7.0, 0.3 + (k + 1) / 7.0, 50.0 + d) for k, d in enumerate([0, 2, 4, 5, 7, 5, 4, 2, 0])], vib=0, seed=1)
+    vo = RU.synth_run([(0.3 + k / 7.0, 0.3 + (k + 1) / 7.0, 50.0 + d) for k, d in enumerate([0, 2, 4, 5, 7, 5, 4, 2, 0])], vib=12, seed=1)
+    flags = []
+    for y_ in (kb, vo):
+        T_, M_, _ = RU.melody(y_)
+        rr = RU.find_runs(RU.fast_notes(T_, M_), 4.0, T=T_, M=M_)
+        flags.append(rr[0]["music_only"] if rr else None)
+    ok(flags == [True, False], "dead-flat keyboard run marked 'music only', a sung run is not (%s)" % flags)
+    import warmup as WU
+    worst = 0
+    for st_ in range(40, 56):
+        for tp in range(55, 72):
+            for ln in ("short", "normal"):
+                for p_ in WU.routine(st_, tp, ln):
+                    for it in p_.items:
+                        if it[0] == "notes":
+                            worst = max(worst, max(n[2] for n in it[1]) - min(tp, 67))
+                        elif it[0] == "glide":
+                            worst = max(worst, max(it[1], it[2]) - min(tp, 67))
+    ok(worst <= 1e-9, "warm-up: no note above the chosen top (and never above G4), all tonics/tops")
+    dl = [sum(p_.dur() for p_ in WU.routine(43, 62, ln)) / 60 for ln in ("short", "normal")]
+    ok(3.5 <= dl[0] <= 4.5 and 6.5 <= dl[1] <= 7.5, "warm-up length: short %.1f min, normal %.1f min" % tuple(dl))
+    mp = WU.export_mp3(WU.routine(43, 62, "short"), "oud", "short", os.path.join(os.path.dirname(folder), "التسخين - Warm-up"))
+    info_ = subprocess.run([G.ffmpeg_path(), "-i", mp], stderr=subprocess.PIPE).stderr.decode("utf-8", "replace")
+    ok(os.path.isfile(mp) and "mp3" in info_ and "دقايق" in os.path.basename(mp), "warm-up MP3: " + os.path.basename(mp))
 
     print("— «النَفَس»")
     import breath as BR

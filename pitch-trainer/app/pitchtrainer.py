@@ -39,6 +39,7 @@ try:
     import breath as BR
     import warmup as WU
     import voicecheck as VC
+    import rhythm as RH
 except Exception:
     crash_log(traceback.format_exc())
     raise
@@ -65,6 +66,8 @@ TEMPO = [("slow", "بطيء"), ("normal", "عادي"), ("fast", "سريع")]
 SPANS = [("jins", "الجنس (5 درجات)"), ("full", "السلم كامل")]
 REFS = [("oud", "عود"), ("piano", "بيانو"), ("tone", "تون")]
 PLAYS = [("stem", "الـ stem"), ("mix", "الميكس كامل")]
+NO_GUIDE = ("song", "calib", "free", "vc1", "vc2", "vc3")
+QUANT_MODES = ("basic", "maqam", "drone", "callresp", "onset", "stability", "leaps", "ajnas")
 LISTEN_MODES = ("basic", "maqam", "callresp", "onset", "stability", "leaps", "ajnas")
 SHOW = {   # which option rows each mode uses
     "ex": ("basic",), "maqam": ("maqam", "drone", "callresp", "onset"), "jins": ("ajnas",),
@@ -149,6 +152,7 @@ class Mixer:
 
     def __init__(self, device=None, enabled=True):
         self.clips, self.drone, self.dpos = [], None, 0
+        self.gain = {"ref": 1.0, "guide": 1.0, "metro": 1.0, "drone": 1.0}
         self.lock = threading.Lock()
         self.count = 0
         self.stream = None
@@ -169,28 +173,36 @@ class Mixer:
             if self.drone is not None:
                 L = len(self.drone)
                 idx = (self.dpos + np.arange(frames)) % L
-                buf += self.drone[idx][:, None]
+                buf += self.drone[idx][:, None] * self.gain["drone"]
                 self.dpos = (self.dpos + frames) % L
             keep = []
             for c in self.clips:
-                y, p = c
+                y, p, bus = c
                 k = min(frames, len(y) - p)
-                buf[:k] += y[p:p + k]
+                g = self.gain.get(bus, 1.0)
+                if g:
+                    buf[:k] += y[p:p + k] * g
                 c[1] = p + k
                 if c[1] < len(y):
                     keep.append(c)
             self.clips = keep
         out[:] = np.clip(buf, -1, 1)
 
-    def play(self, y):
-        self.count += 1
+    def play(self, y, bus="ref"):
+        if bus == "ref":
+            self.count += 1            # reference plays (the CI checks one per step)
+        self.played = getattr(self, "played", {})
+        self.played[bus] = self.played.get(bus, 0) + 1
         if self.stream is None:
             return
         y = np.asarray(y, np.float32)
         if y.ndim == 1:
             y = np.repeat(y[:, None], 2, 1)
         with self.lock:
-            self.clips.append([y, 0])
+            self.clips.append([y, 0, bus])
+
+    def set_gain(self, bus, g):
+        self.gain[bus] = float(g)
 
     def set_drone(self, loop):
         with self.lock:
@@ -210,10 +222,12 @@ class Mixer:
 class Engine(threading.Thread):
     """Worker: mic blocks -> WAV + YIN -> Session; triggers the reference audio."""
 
-    def __init__(self, session, source, mixer, ref_kind, recorder):
+    def __init__(self, session, source, mixer, ref_kind, recorder, guide=False):
         super().__init__(daemon=True)
         self.session, self.source, self.mixer = session, source, mixer
         self.ref_kind, self.rec = ref_kind, recorder
+        self.guide = guide and session.plan.mode not in NO_GUIDE
+        self.next_guide = 0
         self.q = source.q
         self.tracker = E.PitchTracker()
         self.lock = threading.Lock()
@@ -240,12 +254,21 @@ class Engine(threading.Thread):
                 i0, i1 = int(st.song_t0 * E.SR), int((st.song_t0 + st.dur) * E.SR)
                 self.mixer.play(a[i0:i1] * 0.9)
             self.next_step += 1
+        while self.guide and self.next_guide < len(s.steps):   # «الصوت معايا»: the notes under your turn
+            st = s.steps[self.next_guide]
+            if now < st.sing0 - 0.03:
+                break
+            if st.segs and not (getattr(st, "clip", None) is not None and not st.listen):
+                self.mixer.play(oud.render_guide(st, kind=self.ref_kind), bus="guide")
+            self.next_guide += 1
 
     def run(self):
         try:
             if self.session.plan.drone:
                 d = self.session.plan.drone
                 self.mixer.set_drone(oud.drone_loop(d["tonic"], d["fifth"]))
+            if getattr(self.session.plan, "metro", None):
+                self.mixer.play(RH.click_track(self.session.plan.metro), bus="metro")
             self.source.start()
             while self.running:
                 try:
@@ -324,9 +347,12 @@ class App:
                   "start": V("start", "D3"), "bottom": V("bottom", "G2"), "top": V("top", "G4"),
                   "dir": V("dir", "up"), "tempo": V("tempo", "normal"), "ref": V("ref", "oud"),
                   "mic": V("mic", ""), "play": V("play", "stem"), "from": V("from", ""), "to": V("to", ""),
-                  "stem": V("stem", ""), "mixf": V("mixf", "")}
+                  "stem": V("stem", ""), "mixf": V("mixf", ""),
+                  "bpm": V("bpm", "80"), "unit": V("unit", "1")}
         self.b = {k: tk.BooleanVar(value=cfg.get(k, d)) for k, d in (("rec", False), ("blind", False),
-                                                                         ("fifth", True), ("loop", False))}
+                                                                         ("fifth", True), ("loop", False),
+                                                                         ("guide", False), ("metro", False))}
+        self.metro_vol = tk.DoubleVar(value=float(cfg.get("metro_vol", 70)))
         if self.v["mode"].get() == "exercise":
             self.v["mode"].set("basic")
 
@@ -362,6 +388,32 @@ class App:
         fw = ttk.Checkbutton(c, text="خامسة مع الدرون", variable=self.b["fifth"])
         fw.grid(row=r, column=0, columnspan=2, sticky="e")
         self.rows["fifth"] = [fw]; r += 1
+        # «الصوت معايا» + metronome (live: G / M or the boxes, even mid-exercise)
+        gf = ttk.LabelFrame(c, text="  الصوت والإيقاع  ", padding=(6, 2))
+        gf.grid(row=r, column=0, columnspan=2, sticky="ew", pady=(4, 2)); r += 1
+        ttk.Checkbutton(gf, text="الصوت يشتغل معايا وأنا بغني  (G)", variable=self.b["guide"],
+                        command=self.apply_gains).pack(anchor="e")
+        mf = ttk.Frame(gf)
+        mf.pack(anchor="e", fill="x")
+        ttk.Checkbutton(mf, text="ميترونوم  (M)", variable=self.b["metro"], command=self.apply_gains).pack(side="right")
+        self.bpm_sp = ttk.Spinbox(mf, from_=RH.BPM_MIN, to=RH.BPM_MAX, textvariable=self.v["bpm"], width=5)
+        self.bpm_sp.pack(side="right", padx=(6, 2))
+        ttk.Label(mf, text="BPM").pack(side="right")
+        uf = ttk.Frame(gf)
+        uf.pack(anchor="e", fill="x")
+        self.unit_cb = ttk.Combobox(uf, state="readonly", width=9, values=[t for _, t in RH.UNITS])
+        keys = [k for k, _ in RH.UNITS]
+        self.unit_cb.current(keys.index(self.v["unit"].get()) if self.v["unit"].get() in keys else 0)
+        self.unit_cb.bind("<<ComboboxSelected>>", lambda _e: self.v["unit"].set(keys[self.unit_cb.current()]))
+        self.unit_cb.pack(side="right")
+        ttk.Label(uf, text="كل نوتة =").pack(side="right", padx=(6, 4))
+        vf = ttk.Frame(gf)
+        vf.pack(anchor="e", fill="x")
+        ttk.Scale(vf, from_=0, to=100, variable=self.metro_vol, command=lambda _v: self.apply_gains(),
+                  length=120).pack(side="right")
+        ttk.Label(vf, text="صوت الميترونوم").pack(side="right", padx=(6, 4))
+        self.gl_hint = ttk.Label(gf, text="", style="Hint.TLabel")
+        self.gl_hint.pack(anchor="e")
         # song rows
         sf = ttk.Frame(c)
         sf.grid(row=r, column=0, columnspan=2, sticky="ew")
@@ -464,8 +516,11 @@ class App:
         self.breath_tab = BreathTab(self)
         self.warm_tab = WarmupTab(self)
         self.voice_tab = VoiceTab(self)
-        self.nb.select(0 if autotest else min(int(self.cfg.get("tab", 0)), 4))
+        self.rhythm_tab = RhythmTab(self)
+        self.nb.select(0 if autotest else min(int(self.cfg.get("tab", 0)), 5))
         root.protocol("WM_DELETE_WINDOW", self.quit)
+        root.bind_all("<KeyPress-g>", lambda e: self.hotkey(e, "guide"))
+        root.bind_all("<KeyPress-m>", lambda e: self.hotkey(e, "metro"))
         root.after(40, self.tick)
         if autotest:
             self.shots = autotest["shots"]
@@ -540,6 +595,7 @@ class App:
         d.update(self.extra_cfg())
         d.update({k: v.get() for k, v in self.v.items()})
         d.update({k: v.get() for k, v in self.b.items()})
+        d["metro_vol"] = round(self.metro_vol.get())
         self.cfg = d
         try:
             with open(SETTINGS, "w", encoding="utf-8") as f:
@@ -554,12 +610,15 @@ class App:
         if rt:
             d.update(drill_maq=rt.dv["maq"].get(), drill_kind=rt.dv["kind"].get(), drill_start=rt.dv["start"].get(),
                      run_speed=rt.pv["speed"].get(), run_semis=rt.pv["semis"].get(), run_rate=rt.rate.get(),
-                     run_loop=rt.loop_v.get(), run_all=rt.all_v.get())
+                     run_loop=rt.loop_v.get(), run_all=rt.all_v.get(), run_metro=rt.met_v.get(), run_bpm=rt.met_bpm.get())
         if bt:
             d.update(hold_note=bt.note_v.get(), sss_pattern=bt.pat_v.get(), sss_rounds=bt.rounds_v.get())
         if wt:
             d.update(warm_start=wt.wv["start"].get(), warm_top=wt.wv["top"].get(), warm_len=wt.wv["len"].get(), warm_ref=wt.wv["ref"].get(),
                      warm_kind=wt.wv["kind"].get())
+        rh = getattr(self, "rhythm_tab", None)
+        if rh:
+            d.update(rh_kind=rh.kind_v.get(), rh_bpm=rh.bpm_v.get(), rh_vol=round(rh.vol_v.get()))
         vt = getattr(self, "voice_tab", None)
         if vt:
             d.update(vc_kind=vt.kind_v.get(), vc_note=vt.note_v.get())
@@ -569,6 +628,31 @@ class App:
             except tk.TclError:
                 pass
         return d
+
+    def hotkey(self, e, key):
+        if isinstance(e.widget, (tk.Entry, ttk.Entry, ttk.Spinbox, ttk.Combobox)):
+            return
+        self.b[key].set(not self.b[key].get())
+        self.apply_gains()
+
+    def apply_gains(self):
+        """Live: «الصوت معايا» and the metronome are mute switches on the running mix."""
+        eng = self.eng
+        g_on, m_on = self.b["guide"].get(), self.b["metro"].get()
+        if eng is not None:
+            eng.mixer.set_gain("guide", 1.0 if g_on else 0.0)
+            eng.mixer.set_gain("metro", (self.metro_vol.get() / 100.0) if m_on else 0.0)
+        txt = []
+        if eng is not None and m_on and not getattr(eng.session.plan, "metro", None):
+            txt.append("الميترونوم هيشتغل من التمرين الجاي")
+        if hasattr(self, "gl_hint"):
+            self.gl_hint.configure(text="  ·  ".join(txt))
+
+    def metro_for(self, plan):
+        """The main tab's metronome on a main-tab plan (None if off)."""
+        if not self.b["metro"].get() or plan.mode not in QUANT_MODES:
+            return plan
+        return RH.quantize_plan(plan, RH.clamp_bpm(self.v["bpm"].get()), float(self.v["unit"].get() or 1))
 
     def show_lat(self):
         v = self.cfg.get("lat_ms")
@@ -636,14 +720,19 @@ class App:
             return self.cfg["lat_ms"] / 1000.0
         return getattr(source, "latency", 0.0) + getattr(mixer, "latency", 0.0)
 
-    def start(self, sim=None, plan=None):
+    def start(self, sim=None, plan=None, metro=None):
         if self.eng:
             return
+        main = plan is None
         if plan is None and self.v["mode"].get() == "song" and self.song is None and self.v["stem"].get():
             self.load_song(then=lambda: self.start(sim=sim))
             return
         try:
             plan = plan or self.make_plan()
+            if main:
+                plan = self.metro_for(plan)
+            elif metro:                      # runs tab: its own BPM × speed, on the phrase
+                plan = RH.quantize_plan(plan, metro, 1.0, snap_notes=False)
         except (E.PlanError, ValueError) as ex:
             messagebox.showwarning("PitchTrainer", self.plan_error(ex))
             return
@@ -670,7 +759,8 @@ class App:
             self.wav = E.recording_path("%s %s" % (plan.mode, self.v["start"].get()))
             rec = E.WavRecorder(self.wav)
         self.blind = self.b["blind"].get() and plan.mode not in ("calib", "free", "hold", "sss", "phrase", "vc1", "vc2", "vc3")
-        self.eng = Engine(self.session, source, mixer, self.v["ref"].get(), rec)
+        self.eng = Engine(self.session, source, mixer, self.v["ref"].get(), rec, guide=True)
+        self.apply_gains()
         self.t0 = time.time()
         self.ended = False
         self.yc = float(plan.steps[0].segs[0].m0) if plan.steps else 50.0
@@ -759,7 +849,9 @@ class App:
             truth = getattr(self, "auto_truth", {})
             d = [abs(n["err"] - truth[(n["step"], n["k"])]) for n in sess.notes
                  if n["err"] is not None and (n["step"], n["k"]) in truth]
-            self.auto_results.append(dict(e, ref_plays=self.plays, steps=len(sess.steps),
+            pl_ = getattr(eng.mixer, "played", {})
+            self.auto_results.append(dict(e, ref_plays=self.plays, steps=len(sess.steps), guide_plays=pl_.get("guide", 0),
+                                          metro_plays=pl_.get("metro", 0), metro_bpm=(sess.plan.metro or {}).get("bpm") if getattr(sess.plan, "metro", None) else None,
                                           max_target=max([st.top() for st in sess.steps] or [0]),
                                           truth_n=len(d), truth_mae=round(float(np.mean(d)), 2) if d else None,
                                           truth_max=round(float(np.max(d)), 2) if d else None))
@@ -888,6 +980,10 @@ class App:
         if not self.autotest:
             self.save_cfg()
         self.stop()
+        try:
+            self.rhythm_tab.stop()
+        except Exception:
+            pass
         if self.eng:
             self.eng.join(timeout=2)
         self.root.destroy()
@@ -1198,6 +1294,7 @@ class App:
             ("stability", {"start": "A3", "count": 2}),
             ("leaps", {"start": "C3", "tempo": "fast"}),
             ("ajnas", {"jins": "Sikah", "start": "E3", "tempo": "fast", "blind": True}),
+            ("basic", {"ex": "scale5", "start": "C3", "tempo": "normal", "count": 2, "metro": 90, "guide": True}),
         ]
 
     def sim_for(self, mode, seed):
@@ -1256,6 +1353,14 @@ class App:
                 self.root.after(1500, self.auto_next)
             self.root.after(11000, exp)
             return
+        if i >= len(plans) and not getattr(self, "rhythm_done", False):
+            self.rhythm_done = True
+            self.auto_i -= 1
+            rh = self.rhythm_tab
+            self.nb.select(rh.f)
+            rh.toggle()
+            self.root.after(1500, lambda: (self.shot("16-rhythm"), rh.stop(), self.nb.select(0), self.root.after(400, self.auto_next)))
+            return
         if i >= len(plans):
             self.nb.select(1)
             win = self.show_progress()
@@ -1275,6 +1380,10 @@ class App:
                 self.set_combo(cb, k, o[k])
         self.b["fifth"].set(o.get("fifth", True))
         self.b["blind"].set(o.get("blind", False))
+        self.b["guide"].set(bool(o.get("guide")))
+        self.b["metro"].set(bool(o.get("metro")))
+        if o.get("metro"):
+            self.v["bpm"].set(str(o["metro"]))
         self.b["rec"].set(mode == "drone")
         self.sync()
         if mode == "song":
@@ -1305,6 +1414,8 @@ class App:
             for k, st in enumerate(plan.steps):
                 st.index = k
             E.layout(plan.steps, gap=0.5, tail=0.7)
+        if o.get("metro"):
+            plan = RH.quantize_plan(plan, o["metro"], 1.0)
         self.start(sim=sim, plan=plan)
         lv = 0.45 * (plan.steps[-1].sing1 if plan.steps else 5)
         self.root.after(int(lv * 1000), lambda: self.shot("%02d-%s-live" % (len(self.auto_results) + 1, mode)))
@@ -1428,6 +1539,11 @@ class RunsTab:
         ttk.Button(pr, text="اقترح", command=self.suggest).pack(side="right", padx=4)
         self.loop_v = tk.BooleanVar(value=cfg.get("run_loop", True))
         ttk.Checkbutton(pr, text="لوب", variable=self.loop_v).pack(side="right", padx=6)
+        self.met_v = tk.BooleanVar(value=cfg.get("run_metro", False))
+        self.met_bpm = tk.StringVar(value=str(cfg.get("run_bpm", "90")))
+        ttk.Checkbutton(pr, text="ميترونوم", variable=self.met_v).pack(side="right", padx=(10, 2))
+        ttk.Spinbox(pr, from_=RH.BPM_MIN, to=RH.BPM_MAX, textvariable=self.met_bpm, width=5).pack(side="right")
+        ttk.Label(pr, text="BPM الأغنية").pack(side="right", padx=(6, 2))
         bt = ttk.Frame(right)
         bt.grid(row=3, column=0, sticky="ew", pady=4)
         for txt, cmd in (("▶ اسمع", self.listen), ("♪ العود نوتة نوتة", self.oud_slow), ("● غنّي معاها", lambda: self.sing("along")),
@@ -1639,6 +1755,12 @@ class RunsTab:
             self.pv["semis"].set(str(RU.suggest_transpose(r["notes"])))
 
     # -- playback ----------------------------------------------------------------
+    def metro_bpm(self, speed):
+        """The song's BPM slowed with the run: 75% speed = 75% of the BPM."""
+        if not self.met_v.get():
+            return None
+        return RH.clamp_bpm(RH.clamp_bpm(self.met_bpm.get()) * speed)
+
     def clip(self):
         """The A–B section with LEAD s before it, stretched + transposed, and the
         run's notes on the clip clock."""
@@ -1730,7 +1852,7 @@ class RunsTab:
         name = r["name"] or "%s %s" % (os.path.basename(self.rec["path"]), G.fmt_t(r["t0"]))
         info = {"name": name, "key": "%s@%.2f" % (os.path.basename(self.rec["path"]), r["t0"]), "speed": round(sp, 2),
                 "semis": st, "rate": r["rate"], "how": how}
-        self.app.start(sim=sim, plan=self.plan_for(y, notes, how, "runs", info))
+        self.app.start(sim=sim, plan=self.plan_for(y, notes, how, "runs", info), metro=self.metro_bpm(sp))
         self.result = None
 
     def drill(self, sim=None):
@@ -1748,7 +1870,8 @@ class RunsTab:
         name = "%s · %s" % (E.MAQAMAT[self.dv["maq"].get()]["ar"], dict(RU.DRILLS)[self.dv["kind"].get()])
         self.app.cfg.update(drill_maq=self.dv["maq"].get(), drill_kind=self.dv["kind"].get(), drill_start=self.dv["start"].get())
         self.stop()
-        self.app.start(sim=sim, plan=self.plan_for(y, notes, "after", "drill", {"name": name, "key": key, "nps": nps, "speed": 1.0, "semis": 0}))
+        self.app.start(sim=sim, plan=self.plan_for(y, notes, "after", "drill", {"name": name, "key": key, "nps": nps, "speed": 1.0, "semis": 0}),
+                       metro=self.metro_bpm(1.0))
 
     def show_drill(self):
         key = "%s/%s/%s" % (self.dv["maq"].get(), self.dv["kind"].get(), self.dv["start"].get())
@@ -2310,6 +2433,134 @@ class WarmupTab:
 
 
 # ------------------------------------------------------------- «صوتك النهارده» tab
+class RhythmTab:
+    """«الإيقاع»: metronome or an Arabic rhythm on its own (for songs, runs,
+    mawwal practice). Keeps playing when you switch tabs; Tap sets the BPM."""
+
+    def __init__(self, app):
+        self.app = app
+        a = app
+        cfg = a.cfg
+        f = ttk.Frame(a.nb, padding=14)
+        a.nb.add(f, text="  الإيقاع  ")
+        self.f = f
+        self.mixer = None
+        self.playing = False
+        self.t_start = 0.0
+        self.taps = []
+        f.columnconfigure(0, weight=1)
+        ttk.Label(f, text="ميترونوم وإيقاعات شرقي — بيفضل شغال لو قلبت على تبويب تاني", style="Title.TLabel").grid(
+            row=0, column=0, sticky="e", pady=(0, 10))
+        row = ttk.Frame(f)
+        row.grid(row=1, column=0, sticky="e")
+        self.kind_v = tk.StringVar(value=cfg.get("rh_kind", "maqsoum"))
+        keys = [k for k, _, _, _ in RH.RHYTHMS]
+        self.kind_cb = ttk.Combobox(row, state="readonly", width=16, values=[ar for _, ar, _, _ in RH.RHYTHMS])
+        self.kind_cb.current(keys.index(self.kind_v.get()) if self.kind_v.get() in keys else 0)
+        self.kind_cb.bind("<<ComboboxSelected>>", lambda _e: (self.kind_v.set(keys[self.kind_cb.current()]), self.refresh()))
+        self.kind_cb.pack(side="right")
+        ttk.Label(row, text="الإيقاع").pack(side="right", padx=(10, 6))
+        self.bpm_v = tk.StringVar(value=str(cfg.get("rh_bpm", "90")))
+        b2 = ttk.Frame(f)
+        b2.grid(row=2, column=0, sticky="e", pady=8)
+        ttk.Button(b2, text="+5", width=4, command=lambda: self.nudge(5)).pack(side="right")
+        ttk.Button(b2, text="+1", width=4, command=lambda: self.nudge(1)).pack(side="right", padx=2)
+        sp = ttk.Spinbox(b2, from_=RH.BPM_MIN, to=RH.BPM_MAX, textvariable=self.bpm_v, width=6, command=self.refresh)
+        sp.pack(side="right", padx=6)
+        sp.bind("<Return>", lambda _e: self.refresh())
+        sp.bind("<FocusOut>", lambda _e: self.refresh())
+        ttk.Button(b2, text="-1", width=4, command=lambda: self.nudge(-1)).pack(side="right", padx=2)
+        ttk.Button(b2, text="-5", width=4, command=lambda: self.nudge(-5)).pack(side="right")
+        ttk.Label(b2, text="BPM").pack(side="right", padx=(10, 6))
+        ttk.Button(b2, text="Tap  ✋", command=self.tap).pack(side="left", padx=(0, 20))
+        b3 = ttk.Frame(f)
+        b3.grid(row=3, column=0, sticky="e")
+        self.vol_v = tk.DoubleVar(value=float(cfg.get("rh_vol", 70)))
+        ttk.Scale(b3, from_=0, to=100, variable=self.vol_v, length=200, command=lambda _v: self.set_vol()).pack(side="right")
+        ttk.Label(b3, text="الصوت").pack(side="right", padx=(10, 6))
+        self.go = ttk.Button(f, text="▶ شغّل", style="Go.TButton", command=self.toggle)
+        self.go.grid(row=4, column=0, sticky="e", pady=12)
+        self.cv = tk.Canvas(f, bg=PANEL, highlightthickness=0, width=560, height=70)
+        self.cv.grid(row=5, column=0, sticky="ew")
+        self.hint = ttk.Label(f, text="Tap: اخبط على الزرار ٤ مرات أو أكتر على سرعة الأغنية — وأنا أطلّع الـ BPM.",
+                              style="Hint.TLabel")
+        self.hint.grid(row=6, column=0, sticky="e", pady=6)
+        f.after(60, self.draw)
+
+    def bpm(self):
+        return RH.clamp_bpm(self.bpm_v.get())
+
+    def nudge(self, d):
+        self.bpm_v.set(str(int(round(self.bpm() + d))))
+        self.refresh()
+
+    def tap(self):
+        now = time.perf_counter()
+        if self.taps and now - self.taps[-1] > 2.0:
+            self.taps = []
+        self.taps.append(now)
+        b = RH.tap_bpm(self.taps)
+        if b:
+            self.bpm_v.set(str(b))
+            self.refresh()
+        else:
+            self.hint.configure(text="كمّل خبط…")
+
+    def set_vol(self):
+        if self.mixer is not None:
+            self.mixer.set_gain("drone", self.vol_v.get() / 100.0)
+
+    def refresh(self):
+        self.bpm_v.set(str(int(round(self.bpm()))))
+        if self.playing and self.mixer is not None:
+            self.mixer.set_drone(RH.bar_loop(self.kind_v.get(), self.bpm()))
+            self.t_start = time.perf_counter()
+        ar = RH.RHYTHM.get(self.kind_v.get(), ("", 1, ""))[0]
+        self.hint.configure(text="%s · %d BPM" % (ar, self.bpm()))
+
+    def toggle(self):
+        if self.playing:
+            self.stop()
+            return
+        if self.mixer is None:
+            self.mixer = Mixer(enabled=not self.app.autotest)
+        self.playing = True
+        self.set_vol()
+        self.mixer.set_drone(RH.bar_loop(self.kind_v.get(), self.bpm()))
+        self.t_start = time.perf_counter()
+        self.go.configure(text="■ وقّف")
+        self.refresh()
+
+    def stop(self):
+        self.playing = False
+        if self.mixer is not None:
+            self.mixer.set_drone(None)
+        self.go.configure(text="▶ شغّل")
+
+    def draw(self):
+        try:
+            cv = self.cv
+            cv.delete("all")
+            ar, div, pat = RH.RHYTHM.get(self.kind_v.get(), RH.RHYTHM["click44"])
+            w = max(cv.winfo_width(), 300)
+            n = len(pat)
+            cur = -1
+            if self.playing:
+                L = RH.bar_len(self.kind_v.get(), self.bpm())
+                cur = int(((time.perf_counter() - self.t_start) % L) / L * n)
+            cell = (w - 20) / n
+            for i, ch in enumerate(pat):
+                x0 = 10 + i * cell
+                col = {"D": GOLD, "A": GOLD, "T": TEXT, "a": TEXT, "k": MUTED}.get(ch, "#2b2620")
+                fill = col if i == cur else ""
+                cv.create_rectangle(x0 + 3, 12, x0 + cell - 3, 58, outline=col, width=2, fill=fill)
+                lab = {"D": "دم", "T": "تك", "k": "تك", "A": "1", "a": "·"}.get(ch, "")
+                cv.create_text(x0 + cell / 2, 35, text=lab, fill=BG if i == cur else col, font=("Segoe UI", 12, "bold"))
+        except tk.TclError:
+            return
+        self.f.after(40, self.draw)
+
+
 class VoiceTab:
     def __init__(self, app):
         self.app = app

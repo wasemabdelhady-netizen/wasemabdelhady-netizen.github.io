@@ -93,7 +93,7 @@ jobs:
           $fail = @()
           if ([math]::Abs($r.calib.lat - 0.135) -gt 0.02) { $fail += "calibration $($r.calib.lat)" }
           $modes = ($r.sessions | ForEach-Object { $_.mode }) -join ","
-          if ($modes -ne "drone,callresp,song,onset,stability,leaps,ajnas,runs,drill,hold,sss,phrase,vcheck,vcheck") { $fail += "modes $modes" }
+          if ($modes -ne "drone,callresp,song,onset,stability,leaps,ajnas,basic,runs,drill,hold,sss,phrase,vcheck,vcheck") { $fail += "modes $modes" }
           $ru = $r.runs
           if ($ru.runs.Count -lt 1 -or $ru.runs[0].n -lt 10 -or [math]::Abs($ru.runs[0].rate - 7.1) -gt 0.6) { $fail += "run detection" }
           if ($ru.maqam.maqam -ne "Ajam") { $fail += "maqam guess $($ru.maqam.maqam)" }
@@ -121,6 +121,7 @@ jobs:
             if ($s.truth_n -gt 0 -and $s.truth_mae -gt 2) { $fail += "$($s.mode): scoring off by $($s.truth_mae)c" }
             if (@("callresp","onset","stability","leaps","ajnas") -contains $s.mode -and $s.ref_plays -ne $s.steps) { $fail += "$($s.mode): reference not played" }
             if ($s.mode -eq "song" -and $s.ref_plays -ne 1) { $fail += "song not played" }
+            if ($s.mode -eq "basic" -and ($s.metro_plays -ne 1 -or $s.metro_bpm -ne 90 -or $s.guide_plays -ne $s.steps)) { $fail += "basic: metronome/guide not played" }
           }
           $st = $r.sessions | Where-Object { $_.mode -eq "stability" }
           if ([math]::Abs($st.stab.vib_rate - 5.5) -gt 0.4 -or $st.stab.end_drop_c -gt -18) { $fail += "stability analysis" }

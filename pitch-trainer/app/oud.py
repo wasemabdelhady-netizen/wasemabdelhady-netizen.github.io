@@ -116,6 +116,21 @@ def render_step(st, sr=SR, kind="oud"):
     return np.clip(out, -0.95, 0.95).astype(np.float32)
 
 
+def render_guide(st, sr=SR, kind="oud"):
+    """The whole step played under your turn («الصوت معايا»): every note, so you
+    sing along with it instead of after it."""
+    L = st.dur
+    out = np.zeros(int(L * sr) + int(0.7 * sr))
+    for s in st.segs:
+        a = int(s.t0 * sr)
+        d = s.t1 - s.t0
+        if d <= 0:
+            continue
+        y = glide_tone(s.m0, s.m1, d, sr) if s.glide else note(s.m0, d, kind, sr)
+        out[a:a + len(y)] += 0.85 * y[:len(out) - a]
+    return np.clip(out, -0.95, 0.95).astype(np.float32)
+
+
 def drone_loop(tonic, fifth=True, sr=SR, every=2.0):
     """A seamless 2 s loop: the tonic re-plucked softly every 2 s (plus the fifth),
     with the ring of the previous plucks carried over."""

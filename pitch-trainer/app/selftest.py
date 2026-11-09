@@ -24,6 +24,7 @@ import oud
 import report
 import session as S
 import song as G
+import rhythm as RH
 
 SR = E.SR
 
@@ -571,6 +572,78 @@ def main():
     ok(all(abs(g_ - w_) < 0.3 for g_, w_ in zip(got, [7.5, 6.0, 8.0])), "«سسس» 4-4-8: exhales %s s (true 7.5, 6.0, 8.0)" % got)
     s = brun(p, E.synth_voice(np.full(int(p.end * SR), 55.0), seed=2))
     ok(max(x["hiss_s"] for x in BR.analyse_sss(s.H, p.phases)) < 0.5, "a sung note is not taken for «سسس»")
+
+
+    print("— الميترونوم والإيقاع والصوت معايا")
+    for bpm, unit in ((80, 1.0), (120, 1.0), (60, 0.5), (100, 2.0)):
+        beat = 60.0 / bpm
+        for name, plan in (("scale5", E.Plan("basic", E.build_plan("scale5", 48, 43, 67, "up"), {})),
+                           ("maqam Bayati", E.Plan("maqam", E.build_plan("maqam", 50, 43, 67, "up", "normal", "Bayati", "jins"), {})),
+                           ("drone Rast", E.plan_drone(48, "Rast")), ("onset", E.plan_onset(48, "Rast", seed=1)),
+                           ("callresp", E.plan_callresp(50, "Saba", 2, seed=4, count=4)), ("leaps", E.plan_leaps(48, 43, 67))):
+            RH.quantize_plan(plan, bpm, unit)
+            times = []
+            for st in plan.steps:
+                times += [st.listen0, st.sing0] + [st.sing0 + sg.t0 for sg in st.segs]
+                ok(st.top() <= E.TOP_LIMIT + 1e-9, "%s %d BPM: still never above G4" % (name, bpm)) if st is plan.steps[0] else None
+            g_ = beat * min(1.0, unit)
+            off = max(abs(t / g_ - round(t / g_)) for t in times)
+            ok(off < 1e-6, "%s @ %d BPM, note = %s beat: every reference/turn/note starts on the grid (max off %.1e)" % (name, bpm, unit, off))
+            ok(plan.steps[0].listen0 if plan.steps[0].listen else plan.steps[0].sing0 >= RH.COUNT_IN * beat - 1e-9,
+               "%s @ %d BPM: %d-beat count-in before the first note" % (name, bpm, RH.COUNT_IN))
+        p2 = E.Plan("basic", E.build_plan("scale5", 48, 43, 67, "up"), {})
+        RH.quantize_plan(p2, bpm, unit)
+        q = [sg.t1 - sg.t0 for sg in p2.steps[0].segs]
+        ok(abs(q[0] - beat * unit) < 1e-9, "scale5 @ %d BPM: a normal note lasts exactly %s beat (%.3f s)" % (bpm, unit, q[0]))
+        ct = RH.click_track(p2.metro)
+        pk = [t for t in RH.beat_times(p2.metro)]
+        env = np.abs(ct)
+        hits = [float(env[int(t * SR):int(t * SR) + 200].max()) for t in pk[:12]]
+        ok(min(hits) > 0.2, "click track @ %d BPM: a click on each of the first 12 beats" % bpm)
+        acc_ = float(env[int(pk[0] * SR):int(pk[0] * SR) + 200].max())
+        oth = float(env[int(pk[1] * SR):int(pk[1] * SR) + 200].max())
+        ok(acc_ > oth, "the bar's first beat is louder (%.2f vs %.2f)" % (acc_, oth))
+    # clicks sit above the voice: the tracker reads the singer, not the click, when both are in the mic
+    st = E.build_plan("scale5", 48, 43, 67, "up")[:2]
+    pl = E.Plan("basic", st, {})
+    RH.quantize_plan(pl, 90)
+    end = pl.steps[-1].sing1 + 1.0
+    voice = E.synth_voice(E.singer_track(pl.steps, end, late=0.0), vibrato_cents=10, seed=3, noise=0.004)
+    ct = RH.click_track(pl.metro)
+    n = min(len(voice), len(ct))
+    s1 = S.Session(pl, 0.0); s2 = S.Session(pl, 0.0)
+    for sess, y in ((s1, voice[:n]), (s2, voice[:n] + 0.35 * ct[:n])):
+        pt = E.PitchTracker()
+        for i in range(0, n, E.HOP):
+            sess.process(pt.feed(y[i:i + E.HOP]))
+        sess.finish()
+    e1 = [x["err"] for x in s1.notes if x["err"] is not None]
+    e2 = [x["err"] for x in s2.notes if x["err"] is not None]
+    ok(len(e2) == len(e1) and max(abs(a - b) for a, b in zip(e1, e2)) < 6.0,
+       "metronome leaking into the mic changes no note by more than 6c (max %.1fc)" % max(abs(a - b) for a, b in zip(e1, e2)))
+    for k, ar, div, pat in RH.RHYTHMS:
+        for bpm in (60, 90, 140):
+            lp = RH.bar_loop(k, bpm)
+            L = RH.bar_len(k, bpm)
+            ok(abs(len(lp) / SR - L) < 1.5 / SR * 2 and np.abs(lp).max() > 0.2 and np.abs(lp).max() <= 0.95,
+               "rhythm %s (%s) @ %d BPM: one bar = %.3f s, seamless loop" % (k, ar, bpm, L))
+    ok(RH.tap_bpm([0, 0.5, 1.0, 1.5, 2.0]) == 120 and RH.tap_bpm([0, 0.75, 1.5, 2.26]) == 80, "Tap: 0.5 s taps = 120 BPM, 0.75 s = 80 BPM")
+    ok(RH.clamp_bpm("abc") == 80 and RH.clamp_bpm(500) == RH.BPM_MAX, "BPM box: bad or huge values are clamped")
+    st = E.build_plan("arpeggio", 48, 43, 67, "up")[0]
+    g = oud.render_guide(st)
+    ok(len(g) >= st.dur * SR and np.abs(g).max() > 0.1, "«الصوت معايا»: the guide plays the whole turn (%.1f s)" % st.dur)
+    fr = track(g)
+    seg = st.segs[3]
+    mid = [E.hz_to_midi(f) for t, f, c, d_ in fr if f and seg.t0 + 0.15 < t < seg.t1 - 0.05]
+    ok(mid and abs(np.median(mid) - seg.m0) < 0.15, "the guide is on the target note (%s, read %.2f)" % (E.note_name(seg.m0), np.median(mid) if mid else -1))
+    rp = E.Plan("runs", [E.Step(0, 50, [E.Seg(0, 1.2, 50)], listen=True)], {})
+    E.layout(rp.steps, lead=0.8, gap=0.3, tail=0.5)
+    rp.end = rp.steps[0].sing1 + 1.0
+    t_before = rp.steps[0].listen0
+    RH.quantize_plan(rp, 90 * 0.75, 1.0, snap_notes=False)
+    b = 60 / (90 * 0.75)
+    ok(abs(rp.steps[0].listen0 - RH.COUNT_IN * b) < 1e-9 and abs(rp.metro["t0"]) < 1e-9 and rp.metro["bpm"] == 68,
+       "runs at 75%% of 90 BPM: clicks at 68 BPM, the phrase lands on the bar after a %d-beat count-in" % RH.COUNT_IN)
 
     print("")
     print("Scoring accuracy (measured vs true note error):")

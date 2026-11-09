@@ -8,3 +8,4 @@ ffmpeg/
 reports/
 runs/
 warmup/
+app/selftest-*/

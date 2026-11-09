@@ -517,7 +517,7 @@ class App:
         self.warm_tab = WarmupTab(self)
         self.voice_tab = VoiceTab(self)
         self.rhythm_tab = RhythmTab(self)
-        self.nb.select(0 if autotest else min(int(self.cfg.get("tab", 0)), 5))
+        self.nb.select(1 if autotest else min(int(self.cfg.get("tab", 0)), 5))
         root.protocol("WM_DELETE_WINDOW", self.quit)
         root.bind_all("<KeyPress-g>", lambda e: self.hotkey(e, "guide"))
         root.bind_all("<KeyPress-m>", lambda e: self.hotkey(e, "metro"))
@@ -1358,8 +1358,11 @@ class App:
             self.auto_i -= 1
             rh = self.rhythm_tab
             self.nb.select(rh.f)
+            rh.kind_v.set("maqsoum")
             rh.toggle()
-            self.root.after(1500, lambda: (self.shot("16-rhythm"), rh.stop(), self.nb.select(0), self.root.after(400, self.auto_next)))
+            self.root.update_idletasks()
+            self.root.after(2500, lambda: self.shot("16-rhythm"))
+            self.root.after(5000, lambda: (rh.stop(), self.nb.select(1), self.root.after(400, self.auto_next)))
             return
         if i >= len(plans):
             self.nb.select(1)
@@ -1400,6 +1403,7 @@ class App:
         self.auto_start(mode, o, sim)
 
     def auto_start(self, mode, o, sim):
+        self.nb.select(1)           # the exercises tab (the warm-up tab is first)
         try:
             plan = self.make_plan()
         except Exception:

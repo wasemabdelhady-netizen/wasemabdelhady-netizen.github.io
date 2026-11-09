@@ -396,7 +396,7 @@ class App:
         mf = ttk.Frame(gf)
         mf.pack(anchor="e", fill="x")
         ttk.Checkbutton(mf, text="ميترونوم  (M)", variable=self.b["metro"], command=self.apply_gains).pack(side="right")
-        self.bpm_sp = ttk.Spinbox(mf, from_=RH.BPM_MIN, to=RH.BPM_MAX, textvariable=self.v["bpm"], width=5)
+        self.bpm_sp = tk.Spinbox(mf, from_=RH.BPM_MIN, to=RH.BPM_MAX, textvariable=self.v["bpm"], width=5, bg="#1a1714", fg=TEXT, buttonbackground="#2a241d", insertbackground=TEXT, disabledbackground="#1a1714", disabledforeground=MUTED)
         self.bpm_sp.pack(side="right", padx=(6, 2))
         ttk.Label(mf, text="BPM").pack(side="right")
         uf = ttk.Frame(gf)
@@ -630,7 +630,7 @@ class App:
         return d
 
     def hotkey(self, e, key):
-        if isinstance(e.widget, (tk.Entry, ttk.Entry, ttk.Spinbox, ttk.Combobox)):
+        if isinstance(e.widget, (tk.Entry, ttk.Entry, tk.Spinbox, ttk.Spinbox, ttk.Combobox)):
             return
         self.b[key].set(not self.b[key].get())
         self.apply_gains()
@@ -1546,7 +1546,7 @@ class RunsTab:
         self.met_v = tk.BooleanVar(value=cfg.get("run_metro", False))
         self.met_bpm = tk.StringVar(value=str(cfg.get("run_bpm", "90")))
         ttk.Checkbutton(pr, text="ميترونوم", variable=self.met_v).pack(side="right", padx=(10, 2))
-        ttk.Spinbox(pr, from_=RH.BPM_MIN, to=RH.BPM_MAX, textvariable=self.met_bpm, width=5).pack(side="right")
+        tk.Spinbox(pr, from_=RH.BPM_MIN, to=RH.BPM_MAX, textvariable=self.met_bpm, width=5, bg="#1a1714", fg=TEXT, buttonbackground="#2a241d", insertbackground=TEXT, disabledbackground="#1a1714", disabledforeground=MUTED).pack(side="right")
         ttk.Label(pr, text="BPM الأغنية").pack(side="right", padx=(6, 2))
         bt = ttk.Frame(right)
         bt.grid(row=3, column=0, sticky="ew", pady=4)
@@ -2469,7 +2469,7 @@ class RhythmTab:
         b2.grid(row=2, column=0, sticky="e", pady=8)
         ttk.Button(b2, text="+5", width=4, command=lambda: self.nudge(5)).pack(side="right")
         ttk.Button(b2, text="+1", width=4, command=lambda: self.nudge(1)).pack(side="right", padx=2)
-        sp = ttk.Spinbox(b2, from_=RH.BPM_MIN, to=RH.BPM_MAX, textvariable=self.bpm_v, width=6, command=self.refresh)
+        sp = tk.Spinbox(b2, from_=RH.BPM_MIN, to=RH.BPM_MAX, textvariable=self.bpm_v, width=6, command=self.refresh, bg="#1a1714", fg=TEXT, buttonbackground="#2a241d", insertbackground=TEXT, disabledbackground="#1a1714", disabledforeground=MUTED, font=("Segoe UI", 12, "bold"))
         sp.pack(side="right", padx=6)
         sp.bind("<Return>", lambda _e: self.refresh())
         sp.bind("<FocusOut>", lambda _e: self.refresh())

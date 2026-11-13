@@ -550,6 +550,24 @@
     .hero__content { animation:none; }
     .song .cover, .video__play, .video, .video::before { transition:none; }
   }
+
+  /* ---------- OUD · ونس ---------- */
+  .oud { display:grid; gap:28px; grid-template-columns:minmax(0,1fr); align-items:start; }
+  @media (min-width:820px){ .oud { grid-template-columns:320px minmax(0,1fr); gap:44px; } }
+  .oud__cover { display:block; aspect-ratio:1; border-radius:14px; overflow:hidden; box-shadow:0 18px 50px -14px rgba(224,164,88,.45); }
+  .oud__cover img { width:100%; height:100%; object-fit:cover; display:block; }
+  .oud__title { font-family:var(--ar-display); font-weight:700; font-size:28px; line-height:1.25; }
+  .oud__title span { display:block; text-align:right; font-family:var(--en); font-size:13px; letter-spacing:.14em; color:var(--muted); margin-top:4px; }
+  .oud__lead { margin-top:12px; color:var(--muted); line-height:1.9; max-width:52ch; }
+  .oud__tracks { list-style:none; margin-top:20px; display:grid; gap:2px; counter-reset:t; }
+  .oud__tracks li { counter-increment:t; display:flex; align-items:baseline; gap:14px; padding:10px 0; border-bottom:1px solid rgba(245,239,230,.08); font-size:17px; }
+  .oud__tracks li::before { content:counter(t, decimal-leading-zero); font-family:var(--en); font-size:12px; color:var(--gold); min-width:22px; }
+  .oud__tracks a { color:inherit; text-decoration:none; }
+  .oud__tracks a:hover { color:var(--gold); }
+  .oud__tracks li span { margin-inline-start:auto; font-family:var(--en); font-size:13px; color:var(--muted); direction:ltr; }
+  .oud__embed { margin-top:22px; border-radius:12px; overflow:hidden; background:#121212; }
+  .oud__embed iframe { display:block; width:100%; height:152px; border:0; }
+  .oud__links { display:flex; flex-wrap:wrap; gap:10px; margin-top:18px; }
 </style>
 </head>
 <body>
@@ -718,6 +736,35 @@
             </dl>
           </details>
         </article>
+      </div>
+    </section>
+
+
+    <!-- ===== مقطوعات عود · ونس ===== -->
+    <section class="section" id="oud" aria-labelledby="oud-h">
+      <div class="section__head">
+        <p class="eyebrow">OUD</p>
+        <h2 id="oud-h">مقطوعات عود</h2>
+      </div>
+      <div class="oud">
+        <a class="oud__cover" href="https://open.spotify.com/album/3nztBBlLk9UA7swcj6Ptz0" target="_blank" rel="noopener" aria-label="ونس على Spotify">
+          <img src="covers/wanas-vol-1-400.webp" srcset="covers/wanas-vol-1-400.webp 400w, covers/wanas-vol-1.webp 900w" sizes="(min-width:820px) 320px, 100vw" alt="غلاف ونس، الجزء الأول" loading="lazy" width="900" height="900">
+        </a>
+        <div>
+          <h3 class="oud__title">ونس <span lang="en" dir="ltr">WANAS · VOL. 1</span></h3>
+          <p class="oud__lead">ونس سلسلة مقطوعات عود هادية، تأليفي وعزفي. للقعدة الهادية، والمذاكرة، وآخر الليل.</p>
+          <ol class="oud__tracks">
+            <li><a href="https://www.youtube.com/watch?v=G0FWFcITx5M" target="_blank" rel="noopener">صحرا</a> <span>Sahra</span></li>
+            <li><a href="https://www.youtube.com/watch?v=G0FWFcITx5M" target="_blank" rel="noopener">ضي القمر</a> <span>Dayy El Amar</span></li>
+            <li><a href="https://www.youtube.com/watch?v=G0FWFcITx5M" target="_blank" rel="noopener">غياب</a> <span>Ghiyab</span></li>
+            <li><a href="https://www.youtube.com/watch?v=G0FWFcITx5M" target="_blank" rel="noopener">النيل</a> <span>Nile</span></li>
+          </ol>
+          <div class="oud__embed"><iframe title="ونس على Spotify" src="https://open.spotify.com/embed/album/3nztBBlLk9UA7swcj6Ptz0?theme=0" loading="lazy" allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"></iframe></div>
+          <div class="oud__links">
+            <a class="btn btn--line" href="https://open.spotify.com/album/3nztBBlLk9UA7swcj6Ptz0" target="_blank" rel="noopener">Spotify</a>
+            <a class="btn btn--line" href="https://www.youtube.com/watch?v=G0FWFcITx5M" target="_blank" rel="noopener">YouTube · ساعة كاملة</a>
+          </div>
+        </div>
       </div>
     </section>
 
